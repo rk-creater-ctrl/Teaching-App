@@ -1,0 +1,28 @@
+[{
+  "_id": {
+    "$oid": "69c2c118f78ff55d4ff1ade7"
+  },
+  "label": "Course cover",
+  "url": "http://localhost:3000/uploads/1774371096081.png",
+  "createdAt": {
+    "$date": "2026-03-24T16:51:36.117Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-24T16:51:36.117Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69c417125e7f229a60f6c2d3"
+  },
+  "label": "DataSciencw",
+  "url": "http://localhost:3000/uploads/1774458642194.png",
+  "createdAt": {
+    "$date": "2026-03-25T17:10:42.287Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-25T17:10:42.287Z"
+  },
+  "__v": 0
+}]

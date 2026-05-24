@@ -1,0 +1,8 @@
+[{
+  "_id": {
+    "$oid": "69bfb78398084f4f6e48b872"
+  },
+  "fullName": "Main Admin",
+  "username": "admin",
+  "passwordHash": "$2b$10$KFIqzqliMGuWmh7uLXN9r.imGhsKaNlQiATv7i9Qx81OBcv/SOEAG"
+}]

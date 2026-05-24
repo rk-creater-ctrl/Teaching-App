@@ -1,0 +1,46 @@
+[{
+  "_id": {
+    "$oid": "69c93373d5536be3b83b6956"
+  },
+  "title": "List Functions - Python",
+  "youtubeVideoId": "ADzPfJQL_jM",
+  "order": 0,
+  "createdAt": {
+    "$date": "2026-03-29T14:13:07.103Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-29T14:13:07.103Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69c94a68d5536be3b83b697b"
+  },
+  "title": "List Practise - Python",
+  "youtubeVideoId": "oHu0tEhsj4Y",
+  "order": 0,
+  "createdAt": {
+    "$date": "2026-03-29T15:51:04.564Z"
+  },
+  "updatedAt": {
+    "$date": "2026-03-29T15:51:04.564Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69d12b2f7ab316657a07b4c4"
+  },
+  "title": "testing",
+  "type": "file",
+  "fileUrl": "http://localhost:3000/uploads/videos/0911(1)-1775315757482-66186305.mp4",
+  "order": 0,
+  "createdAt": {
+    "$date": "2026-04-04T15:15:59.229Z"
+  },
+  "updatedAt": {
+    "$date": "2026-04-04T15:15:59.229Z"
+  },
+  "__v": 0
+}]

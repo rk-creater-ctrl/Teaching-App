@@ -1,0 +1,26 @@
+[{
+  "_id": {
+    "$oid": "69c5194376d36c43b484b682"
+  },
+  "fullName": "Ritik",
+  "username": "Ritik",
+  "passwordHash": "$2b$10$z73nx1WhRc5DhKGGDuw/yu2E4dtPJ8WmvHUh/5.A3WgE2FFzGrh0m",
+  "role": "student",
+  "createdAt": {
+    "$date": "2026-03-26T11:32:19.994Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "69c93399d5536be3b83b695b"
+  },
+  "fullName": "Test",
+  "username": "test",
+  "passwordHash": "$2b$10$Kr1NkVi3cvzLaSEoBFmKCuA6osAY1Q9DXKQ22DCoRD2OBgP2eQRqK",
+  "role": "student",
+  "createdAt": {
+    "$date": "2026-03-29T14:13:45.124Z"
+  },
+  "__v": 0
+}]
