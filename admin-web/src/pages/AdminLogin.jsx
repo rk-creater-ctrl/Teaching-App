@@ -1,6 +1,7 @@
 // src/pages/AdminLogin.jsx
 import { useState } from "react";
 import api from "../api";
+import { DEFAULT_INSTITUTE_NAME, FIXED_BRAND_NAME } from "../branding";
 
 const wrapper = {
   minHeight: "100vh",
@@ -56,7 +57,8 @@ export default function AdminLogin({ onLogin, appSettings }) {
   const [password, setPassword] = useState("");
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
-  const appName = appSettings?.appName || "TechJaguar";
+  const brandName = appSettings?.brandName || FIXED_BRAND_NAME;
+  const instituteName = appSettings?.instituteName || DEFAULT_INSTITUTE_NAME;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -92,7 +94,7 @@ export default function AdminLogin({ onLogin, appSettings }) {
             {appSettings?.logoUrl && (
               <img
                 src={appSettings.logoUrl}
-                alt={`${appName} logo`}
+                alt={`${brandName} logo`}
                 style={{
                   width: 42,
                   height: 42,
@@ -103,8 +105,13 @@ export default function AdminLogin({ onLogin, appSettings }) {
                 }}
               />
             )}
-            <div style={{ fontSize: 20, fontWeight: 600 }}>
-              {appName} Admin
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 600 }}>
+                {brandName} Admin
+              </div>
+              <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 2 }}>
+                {instituteName}
+              </div>
             </div>
           </div>
           <div style={{ fontSize: 12, color: "#9ca3af" }}>

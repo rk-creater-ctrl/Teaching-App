@@ -42,8 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void didUpdateWidget(covariant LoginScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialSettings.appName != widget.initialSettings.appName ||
-        oldWidget.initialSettings.logoUrl != widget.initialSettings.logoUrl) {
+    final settingsChanged = oldWidget.initialSettings.instituteName !=
+            widget.initialSettings.instituteName ||
+        oldWidget.initialSettings.logoUrl != widget.initialSettings.logoUrl;
+
+    if (settingsChanged) {
       _settings = widget.initialSettings;
     }
   }
@@ -189,7 +192,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _settings.appName,
+                                  _settings.brandName,
                                   style: theme.textTheme.headlineSmall?.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white,
@@ -197,9 +200,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  _isRegistering
-                                      ? 'Create student account'
-                                      : 'Student Portal',
+                                  _settings.instituteName,
                                   style: theme.textTheme.titleSmall?.copyWith(
                                     color: const Color(0xFF9CA3AF),
                                   ),

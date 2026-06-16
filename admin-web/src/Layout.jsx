@@ -6,7 +6,7 @@ export default function Layout({ admin, onLogout, children }) {
     <div className="admin-layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2>TechJaguar Admin</h2>
+          <h2>SR EduNova Admin</h2>
           <p>{admin?.name}</p>
         </div>
         <nav>

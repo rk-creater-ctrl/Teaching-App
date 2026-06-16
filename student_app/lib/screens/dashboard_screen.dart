@@ -236,7 +236,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return AppBar(
       backgroundColor: StudentColors.bg,
       elevation: 0,
-      toolbarHeight: 74,
+      toolbarHeight: 88,
       titleSpacing: 16,
       title: Row(
         children: [
@@ -247,7 +247,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.settings.appName,
+                  widget.settings.brandName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -258,12 +258,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Hi, ${widget.student.fullName}',
+                  widget.settings.instituteName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: StudentColors.muted,
                     fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Hi, ${widget.student.fullName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: StudentColors.muted,
+                    fontSize: 11,
                   ),
                 ),
               ],

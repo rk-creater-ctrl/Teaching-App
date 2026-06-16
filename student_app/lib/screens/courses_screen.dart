@@ -160,9 +160,9 @@ class _CoursesScreenState extends State<CoursesScreen> {
                     fontSize: 20,
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
-                  'Browse live and recorded learning programs built for ${widget.settings.appName} students.',
+                  'Browse live and recorded learning programs built for ${widget.settings.instituteName} students.',
                   style: const TextStyle(
                     color: StudentColors.muted,
                     fontSize: 12,

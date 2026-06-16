@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import api from "../api";
+import {
+  DEFAULT_INSTITUTE_NAME,
+  FIXED_BRAND_NAME,
+  normalizeAppSettings,
+} from "../branding";
 
 const cardStyle = {
   background: "#0b1120",
@@ -40,7 +45,7 @@ const buttonPrimary = {
 };
 
 export default function SettingsPage({ onSettingsSaved }) {
-  const [appName, setAppName] = useState("TechJaguar");
+  const [instituteName, setInstituteName] = useState(DEFAULT_INSTITUTE_NAME);
   const [logoUrl, setLogoUrl] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,13 +63,14 @@ export default function SettingsPage({ onSettingsSaved }) {
       try {
         const res = await api.get("/settings/public");
         if (!mounted) return;
-        setAppName(res.data.appName || "TechJaguar");
-        setLogoUrl(res.data.logoUrl || "");
+        const settings = normalizeAppSettings(res.data);
+        setInstituteName(settings.instituteName);
+        setLogoUrl(settings.logoUrl);
         setLogoPreviewFailed(false);
       } catch (err) {
         console.error(err);
         if (mounted) {
-          setAppName("TechJaguar");
+          setInstituteName(DEFAULT_INSTITUTE_NAME);
           setLogoUrl("");
           setError(
             "Could not load saved settings. You can still edit and save after the backend is running with the latest code."
@@ -108,17 +114,29 @@ export default function SettingsPage({ onSettingsSaved }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const trimmedInstituteName = instituteName.trim();
+
+    if (!trimmedInstituteName) {
+      setError("Institute name is required");
+      setMessage("");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setMessage("");
 
     try {
       const res = await api.post("/settings/admin", {
-        appName,
-        logoUrl,
+        appName: trimmedInstituteName,
+        brandName: FIXED_BRAND_NAME,
+        instituteName: trimmedInstituteName,
+        logoUrl: logoUrl.trim(),
       });
+      setInstituteName(trimmedInstituteName);
+      setLogoUrl(logoUrl.trim());
       setMessage("Settings saved");
-      onSettingsSaved?.(res.data);
+      onSettingsSaved?.(normalizeAppSettings(res.data));
     } catch (err) {
       console.error(err);
       const status = err.response?.status;
@@ -140,10 +158,10 @@ export default function SettingsPage({ onSettingsSaved }) {
     <div className="settings-card" style={cardStyle}>
       <div style={{ marginBottom: 18 }}>
         <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
-          App Settings
+          Settings
         </h3>
         <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 6 }}>
-          Update the app name and logo shown in the admin panel.
+          SR EduNova is fixed. Update the institute name and logo shown in the apps.
         </p>
       </div>
 
@@ -182,11 +200,21 @@ export default function SettingsPage({ onSettingsSaved }) {
         style={{ display: "flex", flexDirection: "column", gap: 14 }}
       >
         <div>
-          <label style={labelStyle}>App Name</label>
+          <label style={labelStyle}>Brand Name</label>
+          <input
+            style={{ ...inputStyle, color: "#9ca3af", cursor: "not-allowed" }}
+            value={FIXED_BRAND_NAME}
+            readOnly
+            disabled
+          />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Institute Name</label>
           <input
             style={inputStyle}
-            value={appName}
-            onChange={(e) => setAppName(e.target.value)}
+            value={instituteName}
+            onChange={(e) => setInstituteName(e.target.value)}
             required
           />
         </div>
@@ -258,11 +286,16 @@ export default function SettingsPage({ onSettingsSaved }) {
                 fontWeight: 700,
               }}
             >
-              T
+              S
             </div>
           )}
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600 }}>{appName}</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>
+              {FIXED_BRAND_NAME}
+            </div>
+            <div style={{ color: "#cbd5e1", fontSize: 12 }}>
+              {instituteName}
+            </div>
             <div style={{ color: "#9ca3af", fontSize: 12 }}>
               Branding preview
             </div>

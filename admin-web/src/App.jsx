@@ -12,6 +12,11 @@ import EnrollmentsPage from "./pages/EnrollmentsPage.jsx";
 import LiveClassPage from "./pages/LiveClassPage";
 import VideosPage from "./pages/VideosPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
+import {
+  DEFAULT_INSTITUTE_NAME,
+  FIXED_BRAND_NAME,
+  normalizeAppSettings,
+} from "./branding";
 
 const layoutStyles = {
   appShell: {
@@ -34,8 +39,8 @@ const layoutStyles = {
   brand: {
     fontSize: 20,
     fontWeight: 600,
-    letterSpacing: 0.5,
-    marginBottom: 8,
+    letterSpacing: 0,
+    marginBottom: 2,
   },
   sidebarSectionTitle: {
     fontSize: 12,
@@ -100,6 +105,8 @@ const layoutStyles = {
 function Layout({ admin, appSettings, onLogout, children, currentPath }) {
   const navigate = useNavigate();
   const adminLabel = admin?.level === "super_admin" ? "Real Admin" : "Admin";
+  const brandName = appSettings?.brandName || FIXED_BRAND_NAME;
+  const instituteName = appSettings?.instituteName || DEFAULT_INSTITUTE_NAME;
 
   const handleLogout = () => {
     localStorage.removeItem("admin");
@@ -119,7 +126,7 @@ function Layout({ admin, appSettings, onLogout, children, currentPath }) {
               <img
                 className="admin-brand-logo"
                 src={appSettings.logoUrl}
-                alt={`${appSettings.appName || "TechJaguar"} logo`}
+                alt={`${brandName} logo`}
                 style={{
                   width: 34,
                   height: 34,
@@ -129,8 +136,11 @@ function Layout({ admin, appSettings, onLogout, children, currentPath }) {
                 }}
               />
             )}
-            <div style={layoutStyles.brand}>
-              {appSettings?.appName || "TechJaguar"}
+            <div>
+              <div style={layoutStyles.brand}>{brandName}</div>
+              <div style={{ fontSize: 12, color: "#cbd5e1" }}>
+                {instituteName}
+              </div>
             </div>
           </div>
           <div style={{ fontSize: 11, color: "#9ca3af" }}>Admin Dashboard</div>
@@ -225,10 +235,7 @@ function Layout({ admin, appSettings, onLogout, children, currentPath }) {
 
 function AppInner() {
   const [admin, setAdmin] = useState(null);
-  const [appSettings, setAppSettings] = useState({
-    appName: "TechJaguar",
-    logoUrl: "",
-  });
+  const [appSettings, setAppSettings] = useState(normalizeAppSettings());
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -257,10 +264,7 @@ function AppInner() {
     api
       .get("/settings/public")
       .then((res) => {
-        setAppSettings({
-          appName: res.data.appName || "TechJaguar",
-          logoUrl: res.data.logoUrl || "",
-        });
+        setAppSettings(normalizeAppSettings(res.data));
       })
       .catch(() => {});
   }, []);

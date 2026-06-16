@@ -5,17 +5,17 @@ import 'screens/login_screen.dart';
 import 'theme/student_ui.dart';
 
 void main() {
-  runApp(const TechJaguarStudentApp());
+  runApp(const SREduNovaStudentApp());
 }
 
-class TechJaguarStudentApp extends StatefulWidget {
-  const TechJaguarStudentApp({super.key});
+class SREduNovaStudentApp extends StatefulWidget {
+  const SREduNovaStudentApp({super.key});
 
   @override
-  State<TechJaguarStudentApp> createState() => _TechJaguarStudentAppState();
+  State<SREduNovaStudentApp> createState() => _SREduNovaStudentAppState();
 }
 
-class _TechJaguarStudentAppState extends State<TechJaguarStudentApp> {
+class _SREduNovaStudentAppState extends State<SREduNovaStudentApp> {
   AppSettings _settings = AppSettings.fallback;
 
   @override
@@ -39,7 +39,7 @@ class _TechJaguarStudentAppState extends State<TechJaguarStudentApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '${_settings.appName} Student',
+      title: '${_settings.brandName} Student',
       theme: ThemeData.dark(useMaterial3: true).copyWith(
         scaffoldBackgroundColor: StudentColors.bg,
         colorScheme: ColorScheme.fromSeed(

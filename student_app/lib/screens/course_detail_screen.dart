@@ -175,7 +175,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         'key': 'YOUR_RAZORPAY_KEY_ID', // replace with your public key
         'amount': amount * 100,
         'currency': 'INR',
-        'name': widget.settings.appName,
+        'name': widget.settings.brandName,
         'description': c['title'] ?? 'Course payment',
         'order_id': orderId,
         'prefill': {
