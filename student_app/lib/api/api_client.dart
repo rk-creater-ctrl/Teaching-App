@@ -10,8 +10,11 @@ class ApiClient {
   ApiClient._internal() {
     _dio = Dio(
       BaseOptions(
-        // Use 10.0.2.2 when calling localhost backend from Android emulator
-        baseUrl: 'http://localhost:3000',
+        // Override with --dart-define=API_URL=https://your-api.onrender.com
+        baseUrl: const String.fromEnvironment(
+          'API_URL',
+          defaultValue: 'http://localhost:3000',
+        ),
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
         headers: {
