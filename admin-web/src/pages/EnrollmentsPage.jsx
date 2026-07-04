@@ -87,7 +87,10 @@ export default function EnrollmentsPage() {
   useEffect(() => {
     loadEnrollments();
 
-    const socket = io(API_URL, { transports: ["websocket", "polling"] });
+    // Render can close a WebSocket handshake while an instance is waking up.
+    // Socket.IO polling still delivers server-pushed events in real time and
+    // reconnects cleanly without producing a failed WebSocket request.
+    const socket = io(API_URL, { transports: ["polling"] });
     const refresh = () => loadEnrollments({ silent: true });
     socket.on("enrollment:changed", refresh);
 
