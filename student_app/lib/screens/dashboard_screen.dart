@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
@@ -25,7 +26,8 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen>
+    with WidgetsBindingObserver {
   bool _loading = true;
   String? _error;
   List<Enrollment> _enrollments = [];
@@ -37,11 +39,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _liveTitle;
   String _liveMode = 'internal';
   bool _internalLiveActive = false;
+  Timer? _liveRefreshTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadAll();
+    _liveRefreshTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _loadLiveClass(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _liveRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadLiveClass();
   }
 
   Future<void> _loadAll() async {
@@ -575,8 +595,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  void _openLiveClass() {
-    Navigator.of(context).push(
+  Future<void> _openLiveClass() async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => LiveClassScreen(
           student: widget.student,
@@ -584,6 +604,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
       ),
     );
+    if (mounted) await _loadLiveClass();
   }
 
   void _openVideos() {
