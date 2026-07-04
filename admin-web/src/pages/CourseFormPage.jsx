@@ -184,7 +184,7 @@ export default function CourseFormPage() {
       if (isEdit) {
         await api.put(`/course/${id}`, payload);
       } else {
-        await api.post("/course", payload);
+        await api.post("/course/create", payload);
       }
 
       navigate("/admin/courses");
