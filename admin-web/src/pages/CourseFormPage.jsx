@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../api";
+import { normalizeAssetUrl } from "../config";
 
 const cardStyle = {
   background: "#0b1120",
@@ -106,7 +107,7 @@ export default function CourseFormPage() {
             offline: c.modeOptions?.offline ?? false,
           },
         });
-        setImagePreview(c.coverImageUrl || "");
+        setImagePreview(normalizeAssetUrl(c.coverImageUrl));
       } catch (err) {
         console.error(err);
         setError("Failed to load course");
@@ -149,7 +150,7 @@ export default function CourseFormPage() {
       });
 
       const { coverImageUrl, path } = res.data;
-      const finalUrl = coverImageUrl || path;
+      const finalUrl = normalizeAssetUrl(coverImageUrl || path);
       if (!finalUrl) throw new Error("Upload did not return URL");
 
       setForm((prev) => ({
@@ -282,7 +283,7 @@ export default function CourseFormPage() {
           {(imagePreview || form.coverImageUrl) && (
             <div style={{ marginTop: 8 }}>
               <img
-                src={imagePreview || form.coverImageUrl}
+                src={normalizeAssetUrl(imagePreview || form.coverImageUrl)}
                 alt="Course cover"
                 style={{ maxWidth: 160, borderRadius: 8 }}
               />

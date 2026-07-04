@@ -1,6 +1,8 @@
 // src/pages/EnrollmentsPage.jsx
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { io } from "socket.io-client";
 import api from "../api";
+import { API_URL } from "../config";
 
 const cardStyle = {
   background: "#0b1120",
@@ -68,8 +70,8 @@ export default function EnrollmentsPage() {
   const [search, setSearch]           = useState("");
   const [markingId, setMarkingId]     = useState(null);
 
-  const loadEnrollments = async () => {
-    setLoading(true);
+  const loadEnrollments = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError("");
     try {
       const res = await api.get("/enrollment/all");
@@ -78,13 +80,22 @@ export default function EnrollmentsPage() {
       console.error(err);
       setError("Failed to load enrollments");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadEnrollments();
-  }, []);
+
+    const socket = io(API_URL, { transports: ["websocket", "polling"] });
+    const refresh = () => loadEnrollments({ silent: true });
+    socket.on("enrollment:changed", refresh);
+
+    return () => {
+      socket.off("enrollment:changed", refresh);
+      socket.disconnect();
+    };
+  }, [loadEnrollments]);
 
   const handleMarkPaid = async (id) => {
     if (!window.confirm("Mark this enrollment as paid and active?")) return;
