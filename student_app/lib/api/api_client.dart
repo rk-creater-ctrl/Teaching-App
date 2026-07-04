@@ -10,10 +10,10 @@ class ApiClient {
   ApiClient._internal() {
     _dio = Dio(
       BaseOptions(
-        // Override with --dart-define=API_URL=https://your-api.onrender.com
+        // Override for local development with --dart-define=API_URL=...
         baseUrl: const String.fromEnvironment(
           'API_URL',
-          defaultValue: 'http://localhost:3000',
+          defaultValue: 'https://backend-7sek.onrender.com',
         ),
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
