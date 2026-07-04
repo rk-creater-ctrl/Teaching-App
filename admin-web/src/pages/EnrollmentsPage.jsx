@@ -63,6 +63,10 @@ const buttonSmall = {
   fontSize: 12,
 };
 
+const apiError = (err, fallback) =>
+  err.response?.data?.detail || err.response?.data?.message ||
+  (typeof err.response?.data === "string" ? err.response.data : fallback);
+
 export default function EnrollmentsPage() {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -108,7 +112,7 @@ export default function EnrollmentsPage() {
       await loadEnrollments();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data || "Error marking as paid");
+      alert(apiError(err, "Error marking as paid"));
     } finally {
       setMarkingId(null);
     }
@@ -122,7 +126,7 @@ export default function EnrollmentsPage() {
       await loadEnrollments();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data || "Error marking as unpaid");
+      alert(apiError(err, "Error marking as unpaid"));
     } finally {
       setMarkingId(null);
     }
@@ -135,7 +139,7 @@ export default function EnrollmentsPage() {
       await loadEnrollments();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data || "Error deleting enrollment");
+      alert(apiError(err, "Error deleting enrollment"));
     }
   };
 
