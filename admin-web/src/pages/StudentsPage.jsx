@@ -111,6 +111,8 @@ function getRoleStyle(user) {
   };
 }
 
+const userId = (user) => user?._id || user?.id;
+
 function ActionButton({ children, danger, disabled, ...props }) {
   return (
     <button
@@ -161,7 +163,10 @@ export default function StudentsPage({ currentAdmin }) {
     setError("");
     try {
       const res = await api.get("/user/list");
-      setStudents(res.data);
+      setStudents((res.data || []).map((user) => ({
+        ...user,
+        _id: userId(user),
+      })));
     } catch (err) {
       console.error(err);
       setError("Failed to load users");
@@ -200,6 +205,8 @@ export default function StudentsPage({ currentAdmin }) {
   };
 
   const handleDelete = async (u) => {
+    const id = userId(u);
+    if (!id) return alert("This user has no valid ID. Refresh the page and try again.");
     if ((u.role === "admin" || u.adminLevel) && !canManageAdmins) {
       alert("Only the real admin can delete admin accounts.");
       return;
@@ -208,7 +215,7 @@ export default function StudentsPage({ currentAdmin }) {
     if (!window.confirm(`Delete ${u.fullName || u.username}?`)) return;
 
     try {
-      await api.delete(`/user/${u._id}`);
+      await api.delete(`/user/${id}`);
       setNotice("User deleted");
       if (form._id === u._id) resetForm();
       await loadStudents();
@@ -219,6 +226,8 @@ export default function StudentsPage({ currentAdmin }) {
   };
 
   const handleRoleChange = async (u, nextRole) => {
+    const id = userId(u);
+    if (!id) return alert("This user has no valid ID. Refresh the page and try again.");
     if (!canManageAdmins) {
       alert("Only the real admin can change admin roles.");
       return;
@@ -227,10 +236,10 @@ export default function StudentsPage({ currentAdmin }) {
     const action = nextRole === "admin" ? "make this user an admin" : "make this admin a student";
     if (!window.confirm(`Are you sure you want to ${action}?`)) return;
 
-    setRoleSavingId(u._id);
+    setRoleSavingId(id);
     setNotice("");
     try {
-      await api.patch(`/user/${u._id}/role`, { role: nextRole });
+      await api.patch(`/user/${id}/role`, { role: nextRole });
       setNotice(nextRole === "admin" ? "User promoted to admin" : "Admin changed to student");
       await loadStudents();
     } catch (err) {
