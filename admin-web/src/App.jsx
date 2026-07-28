@@ -233,32 +233,39 @@ function Layout({ admin, appSettings, onLogout, children, currentPath }) {
   );
 }
 
+function getStoredAdmin() {
+  try {
+    return JSON.parse(localStorage.getItem("admin") || "null");
+  } catch {
+    localStorage.removeItem("admin");
+    return null;
+  }
+}
+
 function AppInner() {
-  const [admin, setAdmin] = useState(null);
+  const [admin, setAdmin] = useState(getStoredAdmin);
   const [appSettings, setAppSettings] = useState(normalizeAppSettings());
   const navigate = useNavigate();
 
   useEffect(() => {
-    const stored = localStorage.getItem("admin");
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setAdmin(parsed);
-
-        api
-          .get("/auth/admin/me")
-          .then((res) => {
-            const refreshedAdmin = { ...res.data.admin, token: parsed.token };
-            localStorage.setItem("admin", JSON.stringify(refreshedAdmin));
-            setAdmin(refreshedAdmin);
-          })
-          .catch(() => {
+    const storedAdmin = getStoredAdmin();
+    if (storedAdmin?.token) {
+      api
+        .get("/auth/admin/me")
+        .then((res) => {
+          const refreshedAdmin = { ...res.data.admin, token: storedAdmin.token };
+          localStorage.setItem("admin", JSON.stringify(refreshedAdmin));
+          setAdmin(refreshedAdmin);
+        })
+        .catch((err) => {
+          const status = err?.response?.status;
+          if (status === 401 || status === 403) {
             localStorage.removeItem("admin");
             setAdmin(null);
-          });
-      } catch {
-        localStorage.removeItem("admin");
-      }
+          }
+        });
+    } else {
+      setAdmin(null);
     }
 
     api
@@ -267,6 +274,19 @@ function AppInner() {
         setAppSettings(normalizeAppSettings(res.data));
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const handleStorage = () => {
+      const storedAdmin = getStoredAdmin();
+      if (!storedAdmin?.token) {
+        localStorage.removeItem("admin");
+        setAdmin(null);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
   const handleLogin = (data) => {
@@ -293,7 +313,11 @@ function AppInner() {
       <Route
         path="/admin/login"
         element={
-          <AdminLogin onLogin={handleLogin} appSettings={appSettings} />
+          admin ? (
+            <Navigate to="/admin/dashboard" replace />
+          ) : (
+            <AdminLogin onLogin={handleLogin} appSettings={appSettings} />
+          )
         }
       />
 
