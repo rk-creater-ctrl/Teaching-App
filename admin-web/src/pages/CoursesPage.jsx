@@ -90,6 +90,10 @@ export default function CoursesPage() {
       await loadCourses();
     } catch (err) {
       console.error(err);
+      if (err.response?.status === 404) {
+        setCourses((prev) => prev.filter((course) => course._id !== id));
+        return;
+      }
       alert(err.response?.data || "Error deleting course");
     }
   };

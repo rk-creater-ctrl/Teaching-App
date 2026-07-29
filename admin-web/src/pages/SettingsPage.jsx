@@ -45,6 +45,7 @@ const buttonPrimary = {
 };
 
 export default function SettingsPage({ onSettingsSaved }) {
+  const [appName, setAppName] = useState(FIXED_BRAND_NAME);
   const [instituteName, setInstituteName] = useState(DEFAULT_INSTITUTE_NAME);
   const [logoUrl, setLogoUrl] = useState("");
   const [loading, setLoading] = useState(true);
@@ -64,12 +65,14 @@ export default function SettingsPage({ onSettingsSaved }) {
         const res = await api.get("/settings/public");
         if (!mounted) return;
         const settings = normalizeAppSettings(res.data);
+        setAppName(settings.appName);
         setInstituteName(settings.instituteName);
         setLogoUrl(settings.logoUrl);
         setLogoPreviewFailed(false);
       } catch (err) {
         console.error(err);
         if (mounted) {
+          setAppName(FIXED_BRAND_NAME);
           setInstituteName(DEFAULT_INSTITUTE_NAME);
           setLogoUrl("");
           setError(
@@ -114,7 +117,14 @@ export default function SettingsPage({ onSettingsSaved }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    const trimmedAppName = appName.trim();
     const trimmedInstituteName = instituteName.trim();
+
+    if (!trimmedAppName) {
+      setError("App name is required");
+      setMessage("");
+      return;
+    }
 
     if (!trimmedInstituteName) {
       setError("Institute name is required");
@@ -128,11 +138,12 @@ export default function SettingsPage({ onSettingsSaved }) {
 
     try {
       const res = await api.post("/settings/admin", {
-        appName: trimmedInstituteName,
-        brandName: FIXED_BRAND_NAME,
+        appName: trimmedAppName,
+        brandName: trimmedAppName,
         instituteName: trimmedInstituteName,
         logoUrl: logoUrl.trim(),
       });
+      setAppName(trimmedAppName);
       setInstituteName(trimmedInstituteName);
       setLogoUrl(logoUrl.trim());
       setMessage("Settings saved");
@@ -161,7 +172,7 @@ export default function SettingsPage({ onSettingsSaved }) {
           Settings
         </h3>
         <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 6 }}>
-          SR EduNova is fixed. Update the institute name and logo shown in the apps.
+          Update the app name, institute name and logo shown in the apps.
         </p>
       </div>
 
@@ -200,12 +211,12 @@ export default function SettingsPage({ onSettingsSaved }) {
         style={{ display: "flex", flexDirection: "column", gap: 14 }}
       >
         <div>
-          <label style={labelStyle}>Brand Name</label>
+          <label style={labelStyle}>App Name</label>
           <input
-            style={{ ...inputStyle, color: "#9ca3af", cursor: "not-allowed" }}
-            value={FIXED_BRAND_NAME}
-            readOnly
-            disabled
+            style={inputStyle}
+            value={appName}
+            onChange={(e) => setAppName(e.target.value)}
+            required
           />
         </div>
 
@@ -291,7 +302,7 @@ export default function SettingsPage({ onSettingsSaved }) {
           )}
           <div>
             <div style={{ fontSize: 15, fontWeight: 600 }}>
-              {FIXED_BRAND_NAME}
+              {appName}
             </div>
             <div style={{ color: "#cbd5e1", fontSize: 12 }}>
               {instituteName}
