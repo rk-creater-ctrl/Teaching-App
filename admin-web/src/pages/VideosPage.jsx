@@ -240,7 +240,7 @@ export default function VideosPage() {
 
           <div>
             <label style={{ fontSize: 13, color: "#9ca3af" }}>
-              YouTube Video ID (for YouTube videos)
+              YouTube Video URL or ID
             </label>
             <input
               type="text"
@@ -258,10 +258,10 @@ export default function VideosPage() {
                 color: "#e5e7eb",
                 fontSize: 14,
               }}
-              placeholder="e.g. JQvlGwI4Vxw"
+              placeholder="e.g. https://youtu.be/JQvlGwI4Vxw"
             />
             <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
-              Paste only the ID (the part after <code>v=</code> in the URL).
+              Paste a YouTube link or just the 11-character video ID.
             </div>
           </div>
 

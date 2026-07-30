@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:video_player/video_player.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../theme/student_ui.dart';
@@ -26,13 +25,28 @@ class VideoItem {
       id: (json['id'] ?? json['_id']) as String,
       title: json['title'] as String,
       type: (json['type'] as String?) ?? 'youtube',
-      youtubeVideoId: json['youtubeVideoId'] as String?,
+      youtubeVideoId: _extractYouTubeVideoId(json['youtubeVideoId'] as String?),
       fileUrl: json['fileUrl'] as String?,
     );
   }
 
   bool get isYouTube => type == 'youtube' && youtubeVideoId != null;
   bool get isFile => type == 'file' && fileUrl != null && fileUrl!.isNotEmpty;
+}
+
+String? _extractYouTubeVideoId(String? value) {
+  final raw = value?.trim();
+  if (raw == null || raw.isEmpty) return null;
+  if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(raw)) return raw;
+
+  final uri = Uri.tryParse(raw);
+  final queryId = uri?.queryParameters['v'];
+  if (queryId != null && queryId.isNotEmpty) return queryId;
+
+  final match = RegExp(
+    r'(?:youtu\.be\/|embed\/|shorts\/|live\/)([a-zA-Z0-9_-]{11})',
+  ).firstMatch(raw);
+  return match?.group(1) ?? raw;
 }
 
 class VideosScreen extends StatefulWidget {
@@ -95,19 +109,13 @@ class _VideosScreenState extends State<VideosScreen> {
     return 'https://dummyimage.com/640x360/111827/9ca3af&text=Video';
   }
 
-  Future<void> _onVideoTap(VideoItem video) async {
+  void _onVideoTap(VideoItem video) {
     if (video.isYouTube) {
-      final uri = Uri.parse(
-        'https://www.youtube.com/watch?v=${video.youtubeVideoId!.trim()}',
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _YouTubePlayerPage(video: video),
+        ),
       );
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!opened && mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _YouTubePlayerPage(video: video),
-          ),
-        );
-      }
     } else if (video.isFile) {
       Navigator.of(context).push(
         MaterialPageRoute(
