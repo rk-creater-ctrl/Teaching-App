@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
@@ -57,9 +58,32 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
         _controller = controller;
         _loading = false;
       });
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final message = e.response?.data is Map
+          ? e.response?.data['error'] ?? e.response?.data['message']
+          : e.response?.data;
+
+      var errorText = 'No internal live class is available right now.';
+      if (status == 401) {
+        errorText = 'Please login again, then join the live class.';
+      } else if (status == 403) {
+        errorText =
+            message?.toString() ?? 'Your enrollment is not approved for live class access yet.';
+      } else if (status == 404) {
+        errorText =
+            message?.toString() ?? 'Teacher has not started the live class yet.';
+      } else if (message != null && message.toString().trim().isNotEmpty) {
+        errorText = message.toString();
+      }
+
+      setState(() {
+        _error = errorText;
+        _loading = false;
+      });
     } catch (e) {
       setState(() {
-        _error = 'No internal live class is available right now.';
+        _error = 'Unable to open live class. Please check your internet and try again.';
         _loading = false;
       });
     }
