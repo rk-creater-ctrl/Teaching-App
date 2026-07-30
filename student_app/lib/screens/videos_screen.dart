@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../theme/student_ui.dart';
@@ -94,13 +95,19 @@ class _VideosScreenState extends State<VideosScreen> {
     return 'https://dummyimage.com/640x360/111827/9ca3af&text=Video';
   }
 
-  void _onVideoTap(VideoItem video) {
+  Future<void> _onVideoTap(VideoItem video) async {
     if (video.isYouTube) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => _YouTubePlayerPage(video: video),
-        ),
+      final uri = Uri.parse(
+        'https://www.youtube.com/watch?v=${video.youtubeVideoId!.trim()}',
       );
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!opened && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _YouTubePlayerPage(video: video),
+          ),
+        );
+      }
     } else if (video.isFile) {
       Navigator.of(context).push(
         MaterialPageRoute(
