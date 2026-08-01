@@ -42,7 +42,9 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void didUpdateWidget(covariant LoginScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final settingsChanged = oldWidget.initialSettings.instituteName !=
+    final settingsChanged = oldWidget.initialSettings.brandName !=
+            widget.initialSettings.brandName ||
+        oldWidget.initialSettings.instituteName !=
             widget.initialSettings.instituteName ||
         oldWidget.initialSettings.logoUrl != widget.initialSettings.logoUrl;
 

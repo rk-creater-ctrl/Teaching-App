@@ -33,6 +33,7 @@ class AppSettings {
   }
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
+    final rawBrandName = '${json['brandName'] ?? json['appName'] ?? ''}'.trim();
     final rawInstituteName = '${json['instituteName'] ?? ''}'.trim();
     final legacyAppName = '${json['appName'] ?? ''}'.trim();
     final instituteName = rawInstituteName.isEmpty
@@ -41,7 +42,7 @@ class AppSettings {
     final logoUrl = '${json['logoUrl'] ?? ''}'.trim();
 
     return AppSettings(
-      brandName: fixedBrandName,
+      brandName: rawBrandName.isEmpty ? fallback.brandName : rawBrandName,
       instituteName:
           instituteName.isEmpty ? fallback.instituteName : instituteName,
       logoUrl: logoUrl,
