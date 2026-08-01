@@ -320,6 +320,7 @@ class _YouTubePlayerPage extends StatefulWidget {
 
 class _YouTubePlayerPageState extends State<_YouTubePlayerPage> {
   late final YoutubePlayerController _controller;
+  bool _fullscreen = false;
 
   @override
   void initState() {
@@ -336,8 +337,26 @@ class _YouTubePlayerPageState extends State<_YouTubePlayerPage> {
 
   @override
   void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     _controller.close();
     super.dispose();
+  }
+
+  Future<void> _toggleFullscreen() async {
+    final next = !_fullscreen;
+    setState(() => _fullscreen = next);
+
+    if (next) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
   }
 
   @override
@@ -345,22 +364,59 @@ class _YouTubePlayerPageState extends State<_YouTubePlayerPage> {
     return YoutubePlayerControllerProvider(
       controller: _controller,
       child: Scaffold(
-        backgroundColor: const Color(0xFF020617),
-        appBar: AppBar(
-          backgroundColor: const Color(0xFF020617),
-          title: Text(
-            widget.video.title,
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
-        body: Center(
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: YoutubePlayer(
-              controller: _controller,
-              aspectRatio: 16 / 9,
+        backgroundColor: Colors.black,
+        appBar: _fullscreen
+            ? null
+            : AppBar(
+                backgroundColor: Colors.black,
+                title: Text(
+                  widget.video.title,
+                  style: const TextStyle(color: Colors.white),
+                ),
+                actions: [
+                  IconButton(
+                    tooltip: 'Fullscreen',
+                    icon: const Icon(Icons.fullscreen, color: Colors.white),
+                    onPressed: _toggleFullscreen,
+                  ),
+                ],
+              ),
+        body: Stack(
+          children: [
+            Center(
+              child: SizedBox.expand(
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: SizedBox(
+                    width: 1600,
+                    height: 900,
+                    child: YoutubePlayer(
+                      controller: _controller,
+                      aspectRatio: 16 / 9,
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
+            if (_fullscreen)
+              Positioned(
+                top: 12,
+                right: 12,
+                child: SafeArea(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: IconButton(
+                      tooltip: 'Exit fullscreen',
+                      icon: const Icon(Icons.fullscreen_exit, color: Colors.white),
+                      onPressed: _toggleFullscreen,
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -449,13 +505,38 @@ class _FileVideoPlayerPageState extends State<FileVideoPlayerPage> {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
+    Widget videoSurface(VideoPlayerController controller) {
+      final size = controller.value.size;
+      final width = size.width == 0 ? 1600.0 : size.width;
+      final height = size.height == 0 ? 900.0 : size.height;
+
+      if (_fullscreen) {
+        return SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              width: width,
+              height: height,
+              child: VideoPlayer(controller),
+            ),
+          ),
+        );
+      }
+
+      return AspectRatio(
+        aspectRatio: controller.value.aspectRatio == 0
+            ? 16 / 9
+            : controller.value.aspectRatio,
+        child: VideoPlayer(controller),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF020617),
+      backgroundColor: Colors.black,
       appBar: _fullscreen
           ? null
           : AppBar(
-              backgroundColor: const Color(0xFF020617),
+              backgroundColor: Colors.black,
               title: Text(
                 widget.video.title,
                 style: const TextStyle(color: Colors.white),
@@ -492,12 +573,7 @@ class _FileVideoPlayerPageState extends State<FileVideoPlayerPage> {
                     ),
                   )
                 : _initialized && controller != null
-                    ? AspectRatio(
-                        aspectRatio: controller.value.aspectRatio == 0
-                            ? 16 / 9
-                            : controller.value.aspectRatio,
-                        child: VideoPlayer(controller),
-                      )
+                    ? videoSurface(controller)
                     : const CircularProgressIndicator(),
           ),
           if (_fullscreen && _initialized)
