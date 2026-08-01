@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
@@ -22,6 +23,7 @@ class LiveClassScreen extends StatefulWidget {
 
 class _LiveClassScreenState extends State<LiveClassScreen> {
   bool _loading = true;
+  bool _fullscreen = false;
   String? _error;
   WebViewController? _controller;
   String _title = 'Live class';
@@ -30,6 +32,29 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
   void initState() {
     super.initState();
     _loadLive();
+  }
+
+  Future<void> _toggleFullscreen() async {
+    final next = !_fullscreen;
+    setState(() => _fullscreen = next);
+
+    if (next) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    super.dispose();
   }
 
   Future<void> _loadLive() async {
@@ -93,48 +118,80 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: StudentColors.bg,
-      appBar: AppBar(
-        backgroundColor: StudentColors.bg,
-        elevation: 0,
-        title: Row(
-          children: [
-            StudentBrandMark(settings: widget.settings, size: 32, radius: 10),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-      body: _loading
-          ? ListView(
-              padding: const EdgeInsets.all(16),
-              children: const [
-                StudentSkeletonCard(height: 180),
-                StudentSkeletonCard(height: 120),
-              ],
-            )
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: StudentEmptyState(
-                      icon: Icons.live_tv_outlined,
-                      title: 'No live class',
-                      message: _error!,
-                      actionLabel: 'Check again',
-                      onAction: _loadLive,
+      appBar: _fullscreen
+          ? null
+          : AppBar(
+              backgroundColor: StudentColors.bg,
+              elevation: 0,
+              title: Row(
+                children: [
+                  StudentBrandMark(settings: widget.settings, size: 32, radius: 10),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                ],
+              ),
+              actions: [
+                if (!_loading && _error == null)
+                  IconButton(
+                    tooltip: 'Fullscreen',
+                    icon: const Icon(Icons.fullscreen, color: Colors.white),
+                    onPressed: _toggleFullscreen,
+                  ),
+              ],
+            ),
+      body: Stack(
+        children: [
+          _loading
+              ? ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: const [
+                    StudentSkeletonCard(height: 180),
+                    StudentSkeletonCard(height: 120),
+                  ],
                 )
-              : WebViewWidget(controller: _controller!),
+              : _error != null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: StudentEmptyState(
+                          icon: Icons.live_tv_outlined,
+                          title: 'No live class',
+                          message: _error!,
+                          actionLabel: 'Check again',
+                          onAction: _loadLive,
+                        ),
+                      ),
+                    )
+                  : WebViewWidget(controller: _controller!),
+          if (_fullscreen)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: SafeArea(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: IconButton(
+                    tooltip: 'Exit fullscreen',
+                    icon: const Icon(Icons.fullscreen_exit, color: Colors.white),
+                    onPressed: _toggleFullscreen,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

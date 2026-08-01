@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:video_player/video_player.dart';
 import '../api/api_client.dart';
@@ -376,62 +377,163 @@ class FileVideoPlayerPage extends StatefulWidget {
 }
 
 class _FileVideoPlayerPageState extends State<FileVideoPlayerPage> {
-  late VideoPlayerController _controller;
+  VideoPlayerController? _controller;
   bool _initialized = false;
+  bool _fullscreen = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(
-      Uri.parse(widget.video.fileUrl!),
-    )
-      ..initialize().then((_) {
-        setState(() {
-          _initialized = true;
-        });
-        _controller.play();
+    _initializeVideo();
+  }
+
+  String _resolvedVideoUrl() {
+    final raw = widget.video.fileUrl!.trim();
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return '${ApiClient().baseUrl}/${raw.replaceFirst(RegExp(r'^/+'), '')}';
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      final url = _resolvedVideoUrl();
+      final controller = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        httpHeaders: const {
+          'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8',
+        },
+      );
+
+      _controller = controller;
+      await controller.initialize().timeout(const Duration(seconds: 25));
+      if (!mounted) return;
+      setState(() {
+        _initialized = true;
+        _error = null;
       });
+      await controller.play();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error =
+            'Video could not load. Re-upload this video from admin if it was uploaded before the latest backend deploy.';
+        _initialized = false;
+      });
+    }
+  }
+
+  Future<void> _toggleFullscreen() async {
+    final next = !_fullscreen;
+    setState(() => _fullscreen = next);
+
+    if (next) {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else {
+      await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      await SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    _controller?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final controller = _controller;
+
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF020617),
-        title: Text(
-          widget.video.title,
-          style: const TextStyle(color: Colors.white),
-        ),
+      appBar: _fullscreen
+          ? null
+          : AppBar(
+              backgroundColor: const Color(0xFF020617),
+              title: Text(
+                widget.video.title,
+                style: const TextStyle(color: Colors.white),
+              ),
+              actions: [
+                if (_initialized)
+                  IconButton(
+                    tooltip: 'Fullscreen',
+                    icon: const Icon(Icons.fullscreen, color: Colors.white),
+                    onPressed: _toggleFullscreen,
+                  ),
+              ],
+            ),
+      body: Stack(
+        children: [
+          Center(
+            child: _error != null
+                ? Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: StudentEmptyState(
+                      icon: Icons.video_file_outlined,
+                      title: 'Video unavailable',
+                      message: _error!,
+                      actionLabel: 'Try again',
+                      onAction: () {
+                        setState(() {
+                          _error = null;
+                          _initialized = false;
+                        });
+                        _controller?.dispose();
+                        _controller = null;
+                        _initializeVideo();
+                      },
+                    ),
+                  )
+                : _initialized && controller != null
+                    ? AspectRatio(
+                        aspectRatio: controller.value.aspectRatio == 0
+                            ? 16 / 9
+                            : controller.value.aspectRatio,
+                        child: VideoPlayer(controller),
+                      )
+                    : const CircularProgressIndicator(),
+          ),
+          if (_fullscreen && _initialized)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: SafeArea(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: IconButton(
+                    tooltip: 'Exit fullscreen',
+                    icon: const Icon(Icons.fullscreen_exit, color: Colors.white),
+                    onPressed: _toggleFullscreen,
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
-      body: Center(
-        child: _initialized
-            ? AspectRatio(
-                aspectRatio: _controller.value.aspectRatio,
-                child: VideoPlayer(_controller),
-              )
-            : const CircularProgressIndicator(),
-      ),
-      floatingActionButton: _initialized
+      floatingActionButton: _initialized && controller != null
           ? FloatingActionButton(
               backgroundColor: const Color(0xFF22C55E),
               onPressed: () {
                 setState(() {
-                  if (_controller.value.isPlaying) {
-                    _controller.pause();
+                  if (controller.value.isPlaying) {
+                    controller.pause();
                   } else {
-                    _controller.play();
+                    controller.play();
                   }
                 });
               },
               child: Icon(
-                _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+                controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
               ),
             )
           : null,
