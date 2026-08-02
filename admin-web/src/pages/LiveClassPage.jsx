@@ -133,6 +133,38 @@ function LiveIconButton({
   );
 }
 
+function StudentStreamCard({ item }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = item.stream;
+    }
+  }, [item.stream]);
+
+  return (
+    <div
+      style={{
+        borderRadius: 14,
+        overflow: "hidden",
+        border: "1px solid #1f2937",
+        background: "#020617",
+      }}
+    >
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        controls
+        style={{ width: "100%", minHeight: 150, display: "block", background: "#000" }}
+      />
+      <div style={{ padding: "8px 10px", color: "#cbd5e1", fontSize: 12, fontWeight: 800 }}>
+        {item.name} · {item.mediaType === "screen" ? "Screen" : "Camera/Mic"}
+      </div>
+    </div>
+  );
+}
+
 function getAdminToken() {
   try {
     const admin = JSON.parse(localStorage.getItem("admin") || "null");
@@ -145,10 +177,13 @@ function getAdminToken() {
 export default function LiveClassPage() {
   const [title, setTitle] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
+  const [courseId, setCourseId] = useState("");
+  const [courses, setCourses] = useState([]);
   const [savingMeta, setSavingMeta] = useState(false);
   const [starting, setStarting] = useState(false);
   const [live, setLive] = useState(false);
   const [viewerCount, setViewerCount] = useState(0);
+  const [viewers, setViewers] = useState([]);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -159,6 +194,7 @@ export default function LiveClassPage() {
   const [messageType, setMessageType] = useState("info");
   const [connectionStatus, setConnectionStatus] = useState("Studio offline");
   const [liveSeconds, setLiveSeconds] = useState(0);
+  const [studentMediaStreams, setStudentMediaStreams] = useState([]);
 
   const localVideoRef = useRef(null);
   const socketRef = useRef(null);
@@ -166,7 +202,14 @@ export default function LiveClassPage() {
   const cameraTrackRef = useRef(null);
   const screenTrackRef = useRef(null);
   const peersRef = useRef(new Map());
+  const studentMediaPeersRef = useRef(new Map());
   const iceServersRef = useRef([]);
+
+  useEffect(() => {
+    api.get("/course/list")
+      .then((res) => setCourses(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error("Load live courses failed:", err));
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -205,6 +248,7 @@ export default function LiveClassPage() {
     try {
       await api.post("/live-class/admin/save", {
         title,
+        courseId: courseId || null,
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
       });
       showMessage("info", "Live class details saved.");
@@ -269,6 +313,7 @@ export default function LiveClassPage() {
 
       const res = await api.post("/live-class/admin/start-internal", {
         title: title || "Live class",
+        courseId: courseId || null,
       });
       const roomCode = res.data.liveClass.internalRoomCode;
       iceServersRef.current = Array.isArray(res.data.iceServers)
@@ -305,6 +350,17 @@ export default function LiveClassPage() {
       });
 
       socket.on("internal-live:viewer-joined", ({ viewerId, name }) => {
+        setViewers((prev) => {
+          if (prev.some((item) => item.viewerId === viewerId)) return prev;
+          return [
+            ...prev,
+            {
+              viewerId,
+              name: name || "Student",
+              permissions: { mic: false, camera: false, screen: false },
+            },
+          ];
+        });
         addMessage({
           name: "Class",
           text: `${name || "A student"} joined.`,
@@ -318,7 +374,12 @@ export default function LiveClassPage() {
         const peer = peersRef.current.get(viewerId);
         if (peer) peer.close();
         peersRef.current.delete(viewerId);
+        const mediaPeer = studentMediaPeersRef.current.get(viewerId);
+        if (mediaPeer) mediaPeer.close();
+        studentMediaPeersRef.current.delete(viewerId);
         setViewerCount(peersRef.current.size);
+        setViewers((prev) => prev.filter((item) => item.viewerId !== viewerId));
+        setStudentMediaStreams((prev) => prev.filter((item) => item.viewerId !== viewerId));
         addMessage({
           name: "Class",
           text: `${name || "A student"} left.`,
@@ -356,6 +417,62 @@ export default function LiveClassPage() {
         });
       });
 
+      socket.on("internal-live:student-media-offer", async ({ from, name, offer, mediaType }) => {
+        try {
+          const peer = new RTCPeerConnection({ iceServers: iceServersRef.current });
+          studentMediaPeersRef.current.set(from, peer);
+
+          peer.ontrack = (event) => {
+            const stream = event.streams[0];
+            setStudentMediaStreams((prev) => {
+              const next = prev.filter((item) => item.viewerId !== from);
+              return [
+                ...next,
+                {
+                  viewerId: from,
+                  name: name || "Student",
+                  mediaType: mediaType || "camera",
+                  stream,
+                },
+              ];
+            });
+          };
+
+          peer.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit("internal-live:student-media-candidate", {
+                to: from,
+                candidate: event.candidate,
+              });
+            }
+          };
+
+          await peer.setRemoteDescription(new RTCSessionDescription(offer));
+          const answer = await peer.createAnswer();
+          await peer.setLocalDescription(answer);
+          socket.emit("internal-live:student-media-answer", { to: from, answer });
+        } catch (err) {
+          console.error("Student media offer failed:", err);
+        }
+      });
+
+      socket.on("internal-live:student-media-candidate", async ({ from, candidate }) => {
+        const peer = studentMediaPeersRef.current.get(from);
+        if (!peer || !candidate) return;
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.error("Student media candidate error:", err);
+        }
+      });
+
+      socket.on("internal-live:student-media-stopped", ({ viewerId }) => {
+        const peer = studentMediaPeersRef.current.get(viewerId);
+        if (peer) peer.close();
+        studentMediaPeersRef.current.delete(viewerId);
+        setStudentMediaStreams((prev) => prev.filter((item) => item.viewerId !== viewerId));
+      });
+
       socket.on("internal-live:error", ({ message: socketMessage }) => {
         setConnectionStatus("Live connection needs attention");
         showMessage("error", socketMessage || "Live connection failed.");
@@ -372,8 +489,12 @@ export default function LiveClassPage() {
   async function stopLive({ callApi = true } = {}) {
     peersRef.current.forEach((peer) => peer.close());
     peersRef.current.clear();
+    studentMediaPeersRef.current.forEach((peer) => peer.close());
+    studentMediaPeersRef.current.clear();
     setViewerCount(0);
+    setViewers([]);
     setRaisedHands([]);
+    setStudentMediaStreams([]);
 
     if (socketRef.current) {
       socketRef.current.disconnect();
@@ -509,6 +630,35 @@ export default function LiveClassPage() {
     setChatText("");
   }
 
+  function setStudentPermission(viewerId, permission, value) {
+    setViewers((prev) =>
+      prev.map((viewer) =>
+        viewer.viewerId === viewerId
+          ? {
+              ...viewer,
+              permissions: {
+                ...viewer.permissions,
+                [permission]: value,
+              },
+            }
+          : viewer
+      )
+    );
+
+    const nextViewer = viewers.find((viewer) => viewer.viewerId === viewerId);
+    const nextPermissions = {
+      mic: nextViewer?.permissions?.mic === true,
+      camera: nextViewer?.permissions?.camera === true,
+      screen: nextViewer?.permissions?.screen === true,
+      [permission]: value,
+    };
+
+    socketRef.current?.emit("internal-live:set-student-permissions", {
+      viewerId,
+      permissions: nextPermissions,
+    });
+  }
+
   return (
     <div>
       <div
@@ -621,7 +771,7 @@ export default function LiveClassPage() {
               onSubmit={handleSaveMeta}
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 220px) auto",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 220px) minmax(0, 220px) auto",
                 gap: 12,
                 marginTop: 14,
                 alignItems: "end",
@@ -637,6 +787,22 @@ export default function LiveClassPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   required
                 />
+              </div>
+              <div>
+                <label style={labelStyle}>Who can join?</label>
+                <select
+                  style={inputStyle}
+                  value={courseId}
+                  disabled={live}
+                  onChange={(e) => setCourseId(e.target.value)}
+                >
+                  <option value="">All enrolled students</option>
+                  {courses.map((course) => (
+                    <option key={course._id || course.id} value={course._id || course.id}>
+                      {course.title}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label style={labelStyle}>Scheduled time</label>
@@ -812,6 +978,68 @@ export default function LiveClassPage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div className="form-card" style={cardStyle}>
+            <h4 style={{ fontSize: 15, margin: 0 }}>Student Access Control</h4>
+            <p style={{ color: "#94a3b8", fontSize: 12, margin: "4px 0 0" }}>
+              Students cannot use mic, camera, or screen share until you allow it here.
+            </p>
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              {viewers.length === 0 ? (
+                <div style={{ color: "#9ca3af", fontSize: 13 }}>No students connected yet.</div>
+              ) : (
+                viewers.map((viewer) => (
+                  <div
+                    key={viewer.viewerId}
+                    style={{
+                      padding: 10,
+                      borderRadius: 14,
+                      background: "#020617",
+                      border: "1px solid #1f2937",
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, marginBottom: 8 }}>{viewer.name}</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {[
+                        ["mic", "Mic"],
+                        ["camera", "Camera"],
+                        ["screen", "Screen"],
+                      ].map(([permission, label]) => {
+                        const allowed = viewer.permissions?.[permission] === true;
+                        return (
+                          <button
+                            key={permission}
+                            type="button"
+                            onClick={() => setStudentPermission(viewer.viewerId, permission, !allowed)}
+                            style={{
+                              ...ghostButton,
+                              padding: "7px 10px",
+                              background: allowed ? "rgba(34,197,94,.18)" : "#0f172a",
+                              color: allowed ? "#bbf7d0" : "#e5e7eb",
+                              borderColor: allowed ? "rgba(34,197,94,.35)" : "#334155",
+                            }}
+                          >
+                            {allowed ? "Allowed" : "Allow"} {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {studentMediaStreams.length > 0 && (
+            <div className="form-card" style={cardStyle}>
+              <h4 style={{ fontSize: 15, margin: 0 }}>Student Shared Media</h4>
+              <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                {studentMediaStreams.map((item) => (
+                  <StudentStreamCard key={item.viewerId} item={item} />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="form-card" style={cardStyle}>
             <h4 style={{ fontSize: 15, margin: 0 }}>Raised Hands</h4>
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>

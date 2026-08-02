@@ -150,6 +150,7 @@ for each row execute function public.set_updated_at();
 create table if not exists public.live_classes (
   id uuid primary key default gen_random_uuid(),
   "key" text not null default 'global' unique,
+  course_id uuid references public.courses(id) on delete set null,
 
   title text not null,
   status text not null default 'scheduled' check (status in ('scheduled','live','ended')),
@@ -190,6 +191,9 @@ create table if not exists public.videos (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.live_classes
+  add column if not exists course_id uuid references public.courses(id) on delete set null;
 
 create index if not exists videos_order_idx on public.videos("order" asc, created_at desc);
 create index if not exists videos_course_id_idx on public.videos(course_id);
