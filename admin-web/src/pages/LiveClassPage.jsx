@@ -76,6 +76,37 @@ const iconPaths = {
   clear: "M6 6h12v2H6V6Zm2 4h8l-1 10H9L8 10Zm2 2 .6 6h2.8l.6-6h-4Z",
 };
 
+function formatLiveTime(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return [hours, minutes, seconds]
+    .map((part) => String(part).padStart(2, "0"))
+    .join(":");
+}
+
+function formatMessageTime(value) {
+  if (!value) return "now";
+  try {
+    return new Date(value).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "now";
+  }
+}
+
+function getInitials(name = "Class") {
+  return String(name)
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase() || "C";
+}
+
 function LiveIconButton({
   icon,
   label,
@@ -126,6 +157,8 @@ export default function LiveClassPage() {
   const [raisedHands, setRaisedHands] = useState([]);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info");
+  const [connectionStatus, setConnectionStatus] = useState("Studio offline");
+  const [liveSeconds, setLiveSeconds] = useState(0);
 
   const localVideoRef = useRef(null);
   const socketRef = useRef(null);
@@ -141,6 +174,19 @@ export default function LiveClassPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!live) {
+      setLiveSeconds(0);
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setLiveSeconds((value) => value + 1);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [live]);
 
   function showMessage(type, text) {
     setMessageType(type);
@@ -245,6 +291,7 @@ export default function LiveClassPage() {
       socketRef.current = socket;
 
       socket.on("connect", () => {
+        setConnectionStatus("Connected to live server");
         socket.emit("internal-live:broadcaster-start", {
           token: getAdminToken(),
           roomCode,
@@ -253,6 +300,7 @@ export default function LiveClassPage() {
 
       socket.on("internal-live:broadcaster-ready", () => {
         setLive(true);
+        setConnectionStatus("Broadcasting to students");
         showMessage("info", "Live class started.");
       });
 
@@ -309,6 +357,7 @@ export default function LiveClassPage() {
       });
 
       socket.on("internal-live:error", ({ message: socketMessage }) => {
+        setConnectionStatus("Live connection needs attention");
         showMessage("error", socketMessage || "Live connection failed.");
       });
     } catch (err) {
@@ -351,6 +400,7 @@ export default function LiveClassPage() {
     }
 
     setLive(false);
+    setConnectionStatus("Studio offline");
 
     if (callApi) {
       try {
@@ -461,14 +511,26 @@ export default function LiveClassPage() {
 
   return (
     <div>
-      <div className="page-card" style={{ ...cardStyle, marginBottom: 18 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+      <div
+        className="page-card"
+        style={{
+          ...cardStyle,
+          marginBottom: 18,
+          background:
+            "linear-gradient(135deg, rgba(15,23,42,.98), rgba(7,17,31,.98) 48%, rgba(127,29,29,.34))",
+          border: "1px solid rgba(148,163,184,.18)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
           <div>
-            <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>
-              Live Class
+            <div style={{ color: "#38bdf8", fontSize: 12, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>
+              Host Studio
+            </div>
+            <h3 style={{ fontSize: 24, fontWeight: 800, margin: "6px 0 0" }}>
+              Live Class Control Panel
             </h3>
             <p style={{ color: "#9ca3af", fontSize: 13, marginTop: 6 }}>
-              Broadcast inside the student app with chat and raise-hand.
+              Start app-only live classes, manage camera/mic, watch students join, and answer doubts from one place.
             </p>
           </div>
           <span
@@ -481,6 +543,39 @@ export default function LiveClassPage() {
           >
             {live ? "LIVE" : "OFFLINE"}
           </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, minmax(130px, 1fr))",
+            gap: 12,
+            marginTop: 18,
+          }}
+        >
+          {[
+            { label: "Stream time", value: live ? formatLiveTime(liveSeconds) : "00:00:00", color: "#f87171" },
+            { label: "Viewers", value: viewerCount, color: "#38bdf8" },
+            { label: "Raised hands", value: raisedHands.length, color: "#f59e0b" },
+            { label: "Studio status", value: connectionStatus, color: live ? "#22c55e" : "#94a3b8" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                padding: 14,
+                borderRadius: 16,
+                background: "rgba(2,6,23,.56)",
+                border: "1px solid rgba(148,163,184,.14)",
+              }}
+            >
+              <div style={{ color: "#94a3b8", fontSize: 11, fontWeight: 800, textTransform: "uppercase" }}>
+                {item.label}
+              </div>
+              <div style={{ color: item.color, fontSize: 18, fontWeight: 900, marginTop: 5 }}>
+                {item.value}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -511,7 +606,17 @@ export default function LiveClassPage() {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <div className="form-card" style={cardStyle}>
-            <h4 style={{ fontSize: 15, margin: 0 }}>Class Details</h4>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <div>
+                <h4 style={{ fontSize: 15, margin: 0 }}>Class Setup</h4>
+                <p style={{ color: "#94a3b8", fontSize: 12, margin: "4px 0 0" }}>
+                  Set the title students will see before going live.
+                </p>
+              </div>
+              <span style={{ color: title.trim() ? "#86efac" : "#fca5a5", fontSize: 12, fontWeight: 800 }}>
+                {title.trim() ? "Ready" : "Title needed"}
+              </span>
+            </div>
             <form
               onSubmit={handleSaveMeta}
               style={{
@@ -553,20 +658,74 @@ export default function LiveClassPage() {
           </div>
 
           <div className="form-card" style={cardStyle}>
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
+            <div
               style={{
-                width: "100%",
-                minHeight: 360,
-                borderRadius: 14,
-                objectFit: "cover",
-                background: "#020617",
+                position: "relative",
+                borderRadius: 18,
+                overflow: "hidden",
                 border: "1px solid #1f2937",
+                background: "#020617",
               }}
-            />
+            >
+              <video
+                ref={localVideoRef}
+                autoPlay
+                muted
+                playsInline
+                style={{
+                  width: "100%",
+                  minHeight: 380,
+                  display: "block",
+                  objectFit: "cover",
+                  background: "#020617",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  top: 14,
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <span
+                  style={{
+                    padding: "6px 10px",
+                    borderRadius: 999,
+                    background: live ? "rgba(220,38,38,.88)" : "rgba(15,23,42,.82)",
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 900,
+                    letterSpacing: ".08em",
+                  }}
+                >
+                  {live ? "● LIVE" : "PREVIEW"}
+                </span>
+                {screenSharing && (
+                  <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(8,47,73,.86)", color: "#bae6fd", fontSize: 11, fontWeight: 900 }}>
+                    SCREEN SHARE
+                  </span>
+                )}
+              </div>
+              {!live && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "grid",
+                    placeItems: "center",
+                    pointerEvents: "none",
+                    background: "linear-gradient(180deg, transparent, rgba(2,6,23,.55))",
+                  }}
+                >
+                  <div style={{ textAlign: "center", color: "#94a3b8", fontSize: 13 }}>
+                    Camera preview will appear after you start live.
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div
               style={{
@@ -620,8 +779,34 @@ export default function LiveClassPage() {
                 />
               )}
               <span style={{ marginLeft: "auto", color: "#9ca3af", fontSize: 13 }}>
-                Viewers: {viewerCount}
+                {micEnabled ? "Mic on" : "Mic muted"} · {cameraEnabled ? "Camera on" : "Camera off"} · Viewers: {viewerCount}
               </span>
+            </div>
+          </div>
+
+          <div className="form-card" style={cardStyle}>
+            <h4 style={{ fontSize: 15, margin: 0 }}>Host Checklist</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 12 }}>
+              {[
+                { label: "Class title", ready: Boolean(title.trim()) },
+                { label: "Camera permission", ready: Boolean(localStreamRef.current) || live },
+                { label: "Students notified", ready: live },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 14,
+                    background: item.ready ? "rgba(5,46,22,.45)" : "rgba(30,41,59,.52)",
+                    border: `1px solid ${item.ready ? "rgba(34,197,94,.28)" : "rgba(148,163,184,.16)"}`,
+                    color: item.ready ? "#bbf7d0" : "#cbd5e1",
+                    fontSize: 12,
+                    fontWeight: 800,
+                  }}
+                >
+                  {item.ready ? "✓" : "○"} {item.label}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -663,7 +848,15 @@ export default function LiveClassPage() {
           </div>
 
           <div className="form-card" style={{ ...cardStyle, minHeight: 420, display: "flex", flexDirection: "column" }}>
-            <h4 style={{ fontSize: 15, margin: 0 }}>Class Chat</h4>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <div>
+                <h4 style={{ fontSize: 15, margin: 0 }}>Live Comments</h4>
+                <p style={{ color: "#94a3b8", fontSize: 12, margin: "4px 0 0" }}>
+                  YouTube-style doubt section for students.
+                </p>
+              </div>
+              <span style={{ color: "#94a3b8", fontSize: 12 }}>{messages.length} comments</span>
+            </div>
             <div
               style={{
                 flex: 1,
@@ -671,27 +864,70 @@ export default function LiveClassPage() {
                 marginTop: 12,
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
+                gap: 14,
                 minHeight: 260,
               }}
             >
               {messages.length === 0 ? (
-                <div style={{ color: "#9ca3af", fontSize: 13 }}>No messages yet.</div>
+                <div
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: 13,
+                    padding: 18,
+                    borderRadius: 14,
+                    background: "#020617",
+                    border: "1px dashed #334155",
+                    textAlign: "center",
+                  }}
+                >
+                  No comments yet. When students ask doubts, they will appear here.
+                </div>
               ) : (
                 messages.map((item, index) => (
                   <div
                     key={item.id || index}
                     style={{
-                      padding: "8px 10px",
-                      borderRadius: 12,
-                      background: item.role === "broadcaster" ? "#082f49" : "#020617",
-                      border: "1px solid #1f2937",
+                      display: "grid",
+                      gridTemplateColumns: "36px 1fr",
+                      gap: 10,
                     }}
                   >
-                    <div style={{ color: "#38bdf8", fontSize: 12, fontWeight: 700 }}>
-                      {item.name || "Class"}
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "50%",
+                        display: "grid",
+                        placeItems: "center",
+                        background:
+                          item.role === "broadcaster"
+                            ? "linear-gradient(135deg,#38bdf8,#22c55e)"
+                            : "linear-gradient(135deg,#334155,#0f172a)",
+                        color: item.role === "broadcaster" ? "#03111f" : "#e5e7eb",
+                        fontSize: 12,
+                        fontWeight: 900,
+                      }}
+                    >
+                      {getInitials(item.name)}
                     </div>
-                    <div style={{ fontSize: 13 }}>{item.text}</div>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+                        <span style={{ color: "#e5e7eb", fontSize: 13, fontWeight: 800 }}>
+                          {item.name || "Class"}
+                        </span>
+                        {item.role === "broadcaster" && (
+                          <span style={{ color: "#03111f", background: "#38bdf8", borderRadius: 999, padding: "2px 7px", fontSize: 10, fontWeight: 900 }}>
+                            TEACHER
+                          </span>
+                        )}
+                        <span style={{ color: "#64748b", fontSize: 11 }}>
+                          {formatMessageTime(item.createdAt)}
+                        </span>
+                      </div>
+                      <div style={{ color: "#d1d5db", fontSize: 13, marginTop: 3, lineHeight: 1.45 }}>
+                        {item.text}
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
