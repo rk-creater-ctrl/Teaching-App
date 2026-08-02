@@ -23,6 +23,16 @@ class Student {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      '_id': id,
+      'fullName': fullName,
+      'email': email,
+      'username': username,
+      'role': role,
+    };
+  }
+
   Student copyWith({
     String? id,
     String? fullName,

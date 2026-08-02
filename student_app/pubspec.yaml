@@ -20,6 +20,7 @@ dependencies:
 
   # HTTP client
   dio: ^5.9.2
+  shared_preferences: ^2.3.3
 
   # UI / misc
   cupertino_icons: ^1.0.8

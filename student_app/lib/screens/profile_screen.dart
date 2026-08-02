@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../models/student.dart';
+import '../services/session_store.dart';
 import '../theme/student_ui.dart';
 import 'login_screen.dart';
 
@@ -79,6 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!mounted) return;
       setState(() => _student = updated);
+      await SessionStore.updateStudent(updated);
       widget.onStudentUpdated?.call(updated);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile updated')),
@@ -396,8 +398,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             icon: Icons.logout,
             label: 'Logout',
             color: StudentColors.orange,
-            onTap: () {
+            onTap: () async {
+              await SessionStore.clear();
               ApiClient().setToken(null);
+              if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,

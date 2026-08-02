@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../models/student.dart';
+import '../services/session_store.dart';
 import '../theme/student_ui.dart';
 import 'main_shell.dart';
 
@@ -130,6 +131,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       api.setToken(token);
       final student = Student.fromJson(Map<String, dynamic>.from(userJson));
+      await SessionStore.saveSession(token: token, student: student);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
