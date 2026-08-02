@@ -5,6 +5,7 @@ import '../models/app_settings.dart';
 import '../models/enrollment.dart';
 import '../models/learning_module.dart';
 import '../models/student.dart';
+import '../services/session_store.dart';
 import '../theme/student_ui.dart';
 import 'enrolled_course_detail_screen.dart';
 import 'live_class_screen.dart';
@@ -77,13 +78,37 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       final res = await ApiClient().getNotifications(widget.student.id);
       final list = res.data as List<dynamic>;
+      final dismissedIds = await SessionStore.getDismissedNotificationIds(
+        widget.student.id,
+      );
       if (!mounted) return;
       setState(() {
         _notifications = list
             .map((item) => Map<String, dynamic>.from(item as Map))
+            .where((item) => !dismissedIds.contains('${item['id'] ?? item['_id'] ?? ''}'))
             .toList();
       });
     } catch (_) {}
+  }
+
+  Future<void> _clearNotifications() async {
+    final ids = _notifications
+        .map((item) => '${item['id'] ?? item['_id'] ?? ''}')
+        .where((id) => id.trim().isNotEmpty)
+        .toList();
+
+    if (ids.isEmpty) return;
+
+    await SessionStore.dismissNotifications(
+      studentId: widget.student.id,
+      notificationIds: ids,
+    );
+
+    if (!mounted) return;
+    setState(() => _notifications = []);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Notifications cleared')),
+    );
   }
 
   Future<void> _loadDashboard() async {
@@ -421,7 +446,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  Widget _buildNotificationPanel(int pending) {
+  Widget _buildNotificationPanel(int pending, {bool showClearButton = true}) {
     final items = <Widget>[];
 
     if (_liveIsJoinable) {
@@ -473,7 +498,33 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: studentCardDecoration(),
-      child: Column(children: items),
+      child: Column(
+        children: [
+          if (showClearButton && _notifications.isNotEmpty) ...[
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Notifications',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _clearNotifications,
+                  icon: const Icon(Icons.done_all_rounded, size: 16),
+                  label: const Text('Clear'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
+          ...items,
+        ],
+      ),
     );
   }
 
@@ -608,13 +659,28 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const StudentSectionHeader(
-                title: 'Notifications',
-                subtitle: 'Live class and fee updates.',
-                icon: Icons.notifications_active_outlined,
+              Row(
+                children: [
+                  const Expanded(
+                    child: StudentSectionHeader(
+                      title: 'Notifications',
+                      subtitle: 'Live class and fee updates.',
+                      icon: Icons.notifications_active_outlined,
+                    ),
+                  ),
+                  if (_notifications.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: () async {
+                        Navigator.of(context).pop();
+                        await _clearNotifications();
+                      },
+                      icon: const Icon(Icons.done_all_rounded, size: 16),
+                      label: const Text('Clear'),
+                    ),
+                ],
               ),
               const SizedBox(height: 14),
-              _buildNotificationPanel(pending),
+              _buildNotificationPanel(pending, showClearButton: false),
             ],
           ),
         );
