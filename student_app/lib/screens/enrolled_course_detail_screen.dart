@@ -213,6 +213,7 @@ class _EnrolledCourseDetailScreenState
                             MaterialPageRoute(
                               builder: (_) => VideosScreen(
                                 settings: widget.settings,
+                                student: widget.student,
                               ),
                             ),
                           );

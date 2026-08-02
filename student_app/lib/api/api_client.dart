@@ -105,8 +105,9 @@ class ApiClient {
     required String studentId,
     required String courseId,
     required String address,
+    required String aadharNumber,
+    required String mobileNumber,
     required String teacherName,
-    required String phone,
     String? message,
   }) {
     return dio.post('/enrollment', data: {
@@ -116,8 +117,11 @@ class ApiClient {
       'paymentType': 'offline',
       'offlineDetails': {
         'address': address,
+        'studentAddress': address,
+        'aadharNumber': aadharNumber,
+        'mobileNumber': mobileNumber,
         'teacherName': teacherName,
-        'phone': phone,
+        'phone': mobileNumber,
         'message': message ?? '',
       },
     });
@@ -166,7 +170,17 @@ class ApiClient {
     });
   }
 
-  Future<Response> getVideos() {
-    return dio.get('/video/public');
+  Future<Response> getVideos({String? studentId}) {
+    return dio.get('/video/public', queryParameters: {
+      if (studentId != null) 'studentId': studentId,
+    });
+  }
+
+  Future<Response> getMaterials(String studentId) {
+    return dio.get('/material/student/$studentId');
+  }
+
+  Future<Response> getNotifications(String studentId) {
+    return dio.get('/notification/student/$studentId');
   }
 }

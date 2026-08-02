@@ -4,6 +4,7 @@ import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:video_player/video_player.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
+import '../models/student.dart';
 import '../theme/student_ui.dart';
 
 class VideoItem {
@@ -11,6 +12,7 @@ class VideoItem {
   final String title;
   final String? youtubeVideoId;
   final String? fileUrl;
+  final String? courseTitle;
   final String type; // 'youtube' or 'file'
 
   VideoItem({
@@ -19,6 +21,7 @@ class VideoItem {
     required this.type,
     this.youtubeVideoId,
     this.fileUrl,
+    this.courseTitle,
   });
 
   factory VideoItem.fromJson(Map<String, dynamic> json) {
@@ -28,6 +31,7 @@ class VideoItem {
       type: (json['type'] as String?) ?? 'youtube',
       youtubeVideoId: _extractYouTubeVideoId(json['youtubeVideoId'] as String?),
       fileUrl: json['fileUrl'] as String?,
+      courseTitle: json['courseTitle'] as String?,
     );
   }
 
@@ -52,10 +56,12 @@ String? _extractYouTubeVideoId(String? value) {
 
 class VideosScreen extends StatefulWidget {
   final AppSettings settings;
+  final Student? student;
 
   const VideosScreen({
     super.key,
     this.settings = AppSettings.fallback,
+    this.student,
   });
 
   @override
@@ -81,7 +87,7 @@ class _VideosScreenState extends State<VideosScreen> {
 
     try {
       final api = ApiClient();
-      final res = await api.getVideos();
+      final res = await api.getVideos(studentId: widget.student?.id);
       final list = res.data as List<dynamic>;
       final videos =
           list.map((e) => VideoItem.fromJson(e as Map<String, dynamic>)).toList();
@@ -273,7 +279,9 @@ class _VideosScreenState extends State<VideosScreen> {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          v.isYouTube ? 'YouTube' : 'File',
+                          v.courseTitle?.isNotEmpty == true
+                              ? v.courseTitle!
+                              : (v.isYouTube ? 'YouTube' : 'File'),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,

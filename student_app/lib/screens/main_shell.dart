@@ -4,6 +4,7 @@ import '../models/app_settings.dart';
 import '../models/student.dart';
 import 'dashboard_screen.dart';
 import 'courses_screen.dart';
+import 'materials_screen.dart';
 import 'profile_screen.dart';
 
 class MainShell extends StatefulWidget {
@@ -54,6 +55,7 @@ class _MainShellState extends State<MainShell> {
         onOpenCourses: () => setState(() => _index = 1),
       ),
       CoursesScreen(student: _student, settings: _settings),
+      MaterialsScreen(student: _student, settings: _settings),
       ProfileScreen(
         student: _student,
         settings: _settings,
@@ -93,6 +95,11 @@ class _MainShellState extends State<MainShell> {
               icon: Icon(Icons.menu_book_outlined),
               selectedIcon: Icon(Icons.menu_book, color: Color(0xFF38BDF8)),
               label: 'Courses',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.description_outlined),
+              selectedIcon: Icon(Icons.description, color: Color(0xFFA855F7)),
+              label: 'Notes',
             ),
             NavigationDestination(
               icon: Icon(Icons.person_outline),

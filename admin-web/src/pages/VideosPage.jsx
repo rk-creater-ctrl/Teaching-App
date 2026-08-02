@@ -13,6 +13,7 @@ const cardStyle = {
 
 export default function VideosPage() {
   const [videos, setVideos] = useState([]);
+  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
@@ -20,12 +21,23 @@ export default function VideosPage() {
   const [form, setForm] = useState({
     title: "",
     youtubeVideoId: "",
+    courseId: "",
     order: "",
   });
 
   useEffect(() => {
     loadVideos();
+    loadCourses();
   }, []);
+
+  async function loadCourses() {
+    try {
+      const res = await api.get("/course/list");
+      setCourses(res.data || []);
+    } catch (e) {
+      console.error("LOAD COURSES ERROR:", e.response?.status, e.response?.data);
+    }
+  }
 
   async function loadVideos() {
     setLoading(true);
@@ -56,13 +68,14 @@ export default function VideosPage() {
       const payload = {
         title: form.title.trim(),
         youtubeVideoId: form.youtubeVideoId.trim(),
+        courseId: form.courseId || null,
         order: form.order ? Number(form.order) : 0,
       };
 
       const res = await api.post("/video/all", payload);
 
       setVideos((prev) => [res.data.video, ...prev]);
-      setForm({ title: "", youtubeVideoId: "", order: "" });
+      setForm({ title: "", youtubeVideoId: "", courseId: "", order: "" });
     } catch (e) {
       console.error("SAVE VIDEO ERROR:", e.response?.status, e.response?.data);
       setError(e.response?.data || "Failed to save video");
@@ -91,6 +104,7 @@ export default function VideosPage() {
 
         const fd = new FormData();
         fd.append("title", form.title.trim());
+        if (form.courseId) fd.append("courseId", form.courseId);
         if (form.order) fd.append("order", String(form.order));
         fd.append("file", file);
 
@@ -111,7 +125,7 @@ export default function VideosPage() {
             setError("Upload succeeded but no video returned from server");
           } else {
             setVideos((prev) => [newVideo, ...prev]);
-            setForm({ title: "", youtubeVideoId: "", order: "" });
+            setForm({ title: "", youtubeVideoId: "", courseId: "", order: "" });
           }
         } catch (e) {
           console.error("UPLOAD VIDEO ERROR:", e);
@@ -267,6 +281,38 @@ export default function VideosPage() {
 
           <div>
             <label style={{ fontSize: 13, color: "#9ca3af" }}>
+              Course access
+            </label>
+            <select
+              value={form.courseId}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, courseId: e.target.value }))
+              }
+              style={{
+                width: "100%",
+                marginTop: 4,
+                padding: "8px 10px",
+                borderRadius: 8,
+                border: "1px solid #374151",
+                background: "#020617",
+                color: "#e5e7eb",
+                fontSize: 14,
+              }}
+            >
+              <option value="">All students / global</option>
+              {courses.map((course) => (
+                <option key={course._id} value={course._id}>
+                  {course.title}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>
+              Course-specific videos show only to active/paid enrolled students.
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 13, color: "#9ca3af" }}>
               Order (optional)
             </label>
             <input
@@ -402,6 +448,9 @@ export default function VideosPage() {
                     {v.type === "youtube"
                       ? `YouTube ID: ${v.youtubeVideoId}`
                       : "File video"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 3 }}>
+                    {v.courseTitle ? `Course: ${v.courseTitle}` : "Access: Global"}
                   </div>
                   <button
                     type="button"

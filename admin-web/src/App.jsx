@@ -11,6 +11,8 @@ import StudentsPage from "./pages/StudentsPage.jsx";
 import EnrollmentsPage from "./pages/EnrollmentsPage.jsx";
 import LiveClassPage from "./pages/LiveClassPage";
 import VideosPage from "./pages/VideosPage.jsx";
+import MaterialsPage from "./pages/MaterialsPage.jsx";
+import NotificationsPage from "./pages/NotificationsPage.jsx";
 import SettingsPage from "./pages/SettingsPage.jsx";
 import {
   DEFAULT_INSTITUTE_NAME,
@@ -192,6 +194,20 @@ function Layout({ admin, appSettings, onLogout, children, currentPath }) {
           </Link>
           <Link
             className="admin-nav-link"
+            to="/admin/materials"
+            style={layoutStyles.navLink(isActive("/admin/materials"))}
+          >
+            Notes
+          </Link>
+          <Link
+            className="admin-nav-link"
+            to="/admin/notifications"
+            style={layoutStyles.navLink(isActive("/admin/notifications"))}
+          >
+            Notifications
+          </Link>
+          <Link
+            className="admin-nav-link"
             to="/admin/settings"
             style={layoutStyles.navLink(isActive("/admin/settings"))}
           >
@@ -210,6 +226,8 @@ function Layout({ admin, appSettings, onLogout, children, currentPath }) {
             {isActive("/admin/enrollments") && "Enrollments"}
             {isActive("/live-class") && "Live Class"}
             {isActive("/admin/videos") && "Videos"}
+            {isActive("/admin/materials") && "Notes"}
+            {isActive("/admin/notifications") && "Notifications"}
             {isActive("/admin/settings") && "Settings"}
           </div>
           {admin && (
@@ -364,6 +382,16 @@ function AppInner() {
       <Route
         path="/admin/videos"
         element={requireAdmin(makeLayout(<VideosPage />))}
+      />
+
+      <Route
+        path="/admin/materials"
+        element={requireAdmin(makeLayout(<MaterialsPage />))}
+      />
+
+      <Route
+        path="/admin/notifications"
+        element={requireAdmin(makeLayout(<NotificationsPage />))}
       />
 
       <Route

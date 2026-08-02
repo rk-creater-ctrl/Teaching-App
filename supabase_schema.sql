@@ -14,8 +14,12 @@ create table if not exists public.users (
   username text not null unique,
   password_hash text not null,
   role text not null default 'student' check (role in ('student','admin','teacher')),
+  status text not null default 'active' check (status in ('active','blocked')),
   created_at timestamptz not null default now()
 );
+
+alter table public.users
+  add column if not exists status text not null default 'active';
 
 -- -------------------------
 -- Admins
@@ -80,6 +84,15 @@ create table if not exists public.enrollments (
 
   amount numeric not null default 0,
 
+  -- Current API payloads; retained as JSON to support flexible offline forms
+  offline_details jsonb,
+  online_payment jsonb,
+
+  student_address text,
+  aadhar_number text,
+  mobile_number text,
+  enrollment_expires_at timestamptz,
+
   offline_address text,
   offline_teacher_name text,
   offline_phone text,
@@ -92,6 +105,12 @@ create table if not exists public.enrollments (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.enrollments
+  add column if not exists student_address text,
+  add column if not exists aadhar_number text,
+  add column if not exists mobile_number text,
+  add column if not exists enrollment_expires_at timestamptz;
 
 create index if not exists enrollments_student_id_idx on public.enrollments(student_id);
 create index if not exists enrollments_course_id_idx on public.enrollments(course_id);
@@ -160,22 +179,82 @@ for each row execute function public.set_updated_at();
 -- -------------------------
 create table if not exists public.videos (
   id uuid primary key default gen_random_uuid(),
+  course_id uuid references public.courses(id) on delete set null,
   title text not null,
   "type" text not null default 'youtube' check ("type" in ('youtube','file')),
   youtube_video_id text,
   file_url text,
+  storage_bucket text,
+  storage_path text,
   "order" integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
 create index if not exists videos_order_idx on public.videos("order" asc, created_at desc);
+create index if not exists videos_course_id_idx on public.videos(course_id);
+
+alter table public.videos
+  add column if not exists course_id uuid references public.courses(id) on delete set null,
+  add column if not exists storage_bucket text,
+  add column if not exists storage_path text;
 
 -- update trigger for videos
 drop trigger if exists trg_videos_updated_at on public.videos;
 create trigger trg_videos_updated_at
 before update on public.videos
 for each row execute function public.set_updated_at();
+
+-- -------------------------
+-- Course Materials / Notes
+-- -------------------------
+create table if not exists public.course_materials (
+  id uuid primary key default gen_random_uuid(),
+  course_id uuid references public.courses(id) on delete set null,
+  title text not null,
+  file_url text not null,
+  file_name text,
+  mime_type text,
+  storage_bucket text,
+  storage_path text,
+  "order" integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists course_materials_course_id_idx on public.course_materials(course_id);
+create index if not exists course_materials_order_idx on public.course_materials("order" asc, created_at desc);
+
+drop trigger if exists trg_course_materials_updated_at on public.course_materials;
+create trigger trg_course_materials_updated_at
+before update on public.course_materials
+for each row execute function public.set_updated_at();
+
+-- -------------------------
+-- In-app Notifications
+-- -------------------------
+create table if not exists public.notifications (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  message text not null default '',
+  "type" text not null default 'general',
+  course_id uuid references public.courses(id) on delete set null,
+  target_role text not null default 'student',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists notifications_created_at_idx on public.notifications(created_at desc);
+create index if not exists notifications_course_id_idx on public.notifications(course_id);
+
+-- Optional future Firebase push support: store device tokens here.
+create table if not exists public.device_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references public.users(id) on delete cascade,
+  token text not null unique,
+  platform text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 
 -- -------------------------
 -- Image URLs

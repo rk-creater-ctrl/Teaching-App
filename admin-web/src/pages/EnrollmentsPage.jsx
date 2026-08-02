@@ -67,6 +67,42 @@ const apiError = (err, fallback) =>
   err.response?.data?.detail || err.response?.data?.message ||
   (typeof err.response?.data === "string" ? err.response.data : fallback);
 
+const registrationDetails = (enrollment) => {
+  const details = enrollment.registrationDetails || {};
+  const legacy = enrollment.offlineDetails || {};
+  return {
+    address:
+      details.address || legacy.studentAddress || legacy.address || "Not provided",
+    aadharNumber:
+      details.aadharNumber ||
+      legacy.aadharNumber ||
+      legacy.aadhaarNumber ||
+      "Not provided",
+    mobileNumber:
+      details.mobileNumber || legacy.mobileNumber || legacy.phone || "Not provided",
+    teacherName:
+      details.teacherName || legacy.teacherName || "Not provided",
+    message: details.message || legacy.message || "",
+  };
+};
+
+const enrollmentDetailsText = (enrollment) => {
+  const details = registrationDetails(enrollment);
+  return [
+    `Student: ${enrollment.studentId?.fullName || "N/A"} (@${enrollment.studentId?.username || "N/A"})`,
+    `Course: ${enrollment.courseId?.title || "N/A"}`,
+    `Mode: ${enrollment.mode || "N/A"}`,
+    `Amount: ${enrollment.amount || 0}`,
+    "",
+    "Registration Details:",
+    `Address: ${details.address}`,
+    `Aadhaar: ${details.aadharNumber}`,
+    `Mobile: ${details.mobileNumber}`,
+    `Teacher / Reference: ${details.teacherName}`,
+    details.message ? `Message: ${details.message}` : null,
+  ].filter(Boolean).join("\n");
+};
+
 export default function EnrollmentsPage() {
   const [enrollments, setEnrollments] = useState([]);
   const [loading, setLoading]         = useState(true);
@@ -105,10 +141,20 @@ export default function EnrollmentsPage() {
   }, [loadEnrollments]);
 
   const handleMarkPaid = async (id) => {
-    if (!window.confirm("Mark this enrollment as paid and active?")) return;
+    const enrollment = enrollments.find((item) => item._id === id);
+    const detailText = enrollment ? `${enrollmentDetailsText(enrollment)}\n\nApprove this enrollment and mark as paid/active?` : "Mark this enrollment as paid and active?";
+    if (!window.confirm(detailText)) return;
+    const expiryInput = window.prompt(
+      "Optional: enter access expiry date as YYYY-MM-DD. Leave blank for no expiry.",
+      ""
+    );
+    if (expiryInput === null) return;
+    const expiresAt = expiryInput.trim()
+      ? new Date(`${expiryInput.trim()}T23:59:59`).toISOString()
+      : null;
     setMarkingId(id);
     try {
-      await api.post(`/enrollment/mark-paid/${id}`);
+      await api.post(`/enrollment/mark-paid/${id}`, { expiresAt });
       await loadEnrollments();
     } catch (err) {
       console.error(err);
@@ -141,6 +187,10 @@ export default function EnrollmentsPage() {
       console.error(err);
       alert(apiError(err, "Error deleting enrollment"));
     }
+  };
+
+  const handleViewDetails = (enrollment) => {
+    window.alert(enrollmentDetailsText(enrollment));
   };
 
   const filtered = enrollments.filter((e) => {
@@ -192,6 +242,7 @@ export default function EnrollmentsPage() {
                 <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Student</th>
                 <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Course</th>
                 <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Mode</th>
+                <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Registration Details</th>
                 <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Payment</th>
                 <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Pending Fees</th>
                 <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Status</th>
@@ -225,6 +276,42 @@ export default function EnrollmentsPage() {
                     >
                       {e.mode}
                     </span>
+                  </td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #111827", maxWidth: 260 }}>
+                    {(() => {
+                      const details = registrationDetails(e);
+                      return (
+                        <div>
+                          <div style={{ fontSize: 12 }}>
+                            <span style={{ color: "#9ca3af" }}>Mobile:</span>{" "}
+                            {details.mobileNumber}
+                          </div>
+                          <div style={{ fontSize: 12 }}>
+                            <span style={{ color: "#9ca3af" }}>Aadhaar:</span>{" "}
+                            {details.aadharNumber}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#cbd5e1",
+                              marginTop: 3,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                            title={details.address}
+                          >
+                            {details.address}
+                          </div>
+                          <button
+                            style={{ ...buttonSmall, marginTop: 6 }}
+                            onClick={() => handleViewDetails(e)}
+                          >
+                            View Details
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: 10, borderBottom: "1px solid #111827" }}>
                     <div>

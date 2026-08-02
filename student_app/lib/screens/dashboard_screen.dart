@@ -31,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool _loading = true;
   String? _error;
   List<Enrollment> _enrollments = [];
+  List<Map<String, dynamic>> _notifications = [];
   Map<String, Set<String>> _completedByCourse = {};
 
   bool _checkingLive = true;
@@ -68,7 +69,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     await Future.wait([
       _loadDashboard(),
       _loadLiveClass(),
+      _loadNotifications(),
     ]);
+  }
+
+  Future<void> _loadNotifications() async {
+    try {
+      final res = await ApiClient().getNotifications(widget.student.id);
+      final list = res.data as List<dynamic>;
+      if (!mounted) return;
+      setState(() {
+        _notifications = list
+            .map((item) => Map<String, dynamic>.from(item as Map))
+            .toList();
+      });
+    } catch (_) {}
   }
 
   Future<void> _loadDashboard() async {
@@ -331,6 +346,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     var count = 0;
     if (_liveIsJoinable) count++;
     count += _enrollments.where((item) => !item.isPaid).length;
+    count += _notifications.isNotEmpty ? 1 : 0;
     return count;
   }
 
@@ -428,6 +444,17 @@ class _DashboardScreenState extends State<DashboardScreen>
           color: StudentColors.orange,
           title: '$pending fee ${pending == 1 ? 'request' : 'requests'} pending',
           subtitle: 'Admin approval is needed before live class access opens.',
+        ),
+      );
+    }
+
+    for (final notification in _notifications.take(3)) {
+      items.add(
+        _AlertTile(
+          icon: Icons.campaign_rounded,
+          color: StudentColors.blue,
+          title: '${notification['title'] ?? 'Notice'}',
+          subtitle: '${notification['message'] ?? ''}',
         ),
       );
     }
@@ -610,7 +637,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _openVideos() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => VideosScreen(settings: widget.settings),
+        builder: (_) => VideosScreen(
+          settings: widget.settings,
+          student: widget.student,
+        ),
       ),
     );
   }

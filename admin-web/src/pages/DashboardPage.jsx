@@ -32,6 +32,12 @@ const iconPaths = {
     "M5 3h14v18H5V3Zm2 2v14h10V5H7Zm2 3h6v2H9V8Zm0 4h6v2H9v-2Zm0 4h4v2H9v-2Z",
   videos:
     "M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11ZM6.5 6a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-11Zm4 3 5 3-5 3V9Z",
+  materials:
+    "M6 2h9l5 5v15H6V2Zm8 1.5V8h4.5L14 3.5ZM8 11h8v2H8v-2Zm0 4h8v2H8v-2Z",
+  revenue:
+    "M12 3h8v2h-3.2A5.5 5.5 0 0 1 12 13h-1.2l6.6 8H14.8L8.2 13H5v-2h7a3.5 3.5 0 0 0 3.32-2.4H5v-2h10.32A3.5 3.5 0 0 0 12 5H5V3h7Z",
+  live:
+    "M4 6h10a2 2 0 0 1 2 2v1.1l4-2.1v10l-4-2.1V16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z",
 };
 
 function StatIcon({ name, color }) {
@@ -66,7 +72,12 @@ export default function DashboardPage() {
     courses: 0,
     students: 0,
     enrollments: 0,
+    activeEnrollments: 0,
+    pendingEnrollments: 0,
     videos: 0,
+    materials: 0,
+    revenue: 0,
+    live: null,
   });
 
   useEffect(() => {
@@ -74,23 +85,28 @@ export default function DashboardPage() {
 
     async function loadStats() {
       setLoading(true);
-      const [courses, students, enrollments, videos] = await Promise.allSettled(
-        [
-          api.get("/course/list"),
-          api.get("/user/list"),
-          api.get("/enrollment/all"),
-          api.get("/video/all"),
-        ]
-      );
+      const statsRes = await api.get("/dashboard/admin").catch(async () => {
+        const [courses, students, enrollments, videos] = await Promise.allSettled(
+          [
+            api.get("/course/list"),
+            api.get("/user/list"),
+            api.get("/enrollment/all"),
+            api.get("/video/all"),
+          ]
+        );
+        return {
+          data: {
+            courses: getCount(courses),
+            students: getCount(students),
+            enrollments: getCount(enrollments),
+            videos: getCount(videos),
+          },
+        };
+      });
 
       if (!mounted) return;
 
-      setStats({
-        courses: getCount(courses),
-        students: getCount(students),
-        enrollments: getCount(enrollments),
-        videos: getCount(videos),
-      });
+      setStats((prev) => ({ ...prev, ...statsRes.data }));
       setLoading(false);
     }
 
@@ -111,6 +127,15 @@ export default function DashboardPage() {
       icon: "enrollments",
     },
     { label: "Videos", value: stats.videos, accent: "#a855f7", icon: "videos" },
+    { label: "Notes", value: stats.materials, accent: "#facc15", icon: "materials" },
+    { label: "Pending", value: stats.pendingEnrollments, accent: "#fb923c", icon: "enrollments" },
+    { label: "Revenue", value: `₹${stats.revenue || 0}`, accent: "#10b981", icon: "revenue" },
+    {
+      label: "Live",
+      value: stats.live?.internal_live_active ? "ON" : "OFF",
+      accent: stats.live?.internal_live_active ? "#ef4444" : "#64748b",
+      icon: "live",
+    },
   ];
 
   return (

@@ -111,6 +111,20 @@ function getRoleStyle(user) {
   };
 }
 
+function getStatusStyle(user) {
+  return user.status === "blocked"
+    ? {
+        background: "rgba(127,29,29,0.22)",
+        color: "#fecaca",
+        border: "1px solid rgba(239,68,68,0.36)",
+      }
+    : {
+        background: "rgba(34,197,94,0.13)",
+        color: "#bbf7d0",
+        border: "1px solid rgba(34,197,94,0.28)",
+      };
+}
+
 const userId = (user) => user?._id || user?.id;
 
 function ActionButton({ children, danger, disabled, ...props }) {
@@ -247,6 +261,27 @@ export default function StudentsPage({ currentAdmin }) {
       alert(err.response?.data || "Error updating role");
     } finally {
       setRoleSavingId(null);
+    }
+  };
+
+  const handleStatusChange = async (u, nextStatus) => {
+    const id = userId(u);
+    if (!id) return alert("This user has no valid ID. Refresh the page and try again.");
+    if ((u.role === "admin" || u.adminLevel) && !canManageAdmins) {
+      alert("Only the real admin can block/unblock admin accounts.");
+      return;
+    }
+
+    const action = nextStatus === "blocked" ? "block" : "unblock";
+    if (!window.confirm(`Are you sure you want to ${action} ${u.fullName || u.username}?`)) return;
+
+    try {
+      await api.patch(`/user/${id}/status`, { status: nextStatus });
+      setNotice(nextStatus === "blocked" ? "User blocked" : "User unblocked");
+      await loadStudents();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data || "Error updating account status");
     }
   };
 
@@ -429,6 +464,7 @@ export default function StudentsPage({ currentAdmin }) {
                 <tr style={{ background: "#020617" }}>
                   <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>User</th>
                   <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Role</th>
+                  <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Status</th>
                   <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Created</th>
                   <th style={{ padding: 10, textAlign: "left", borderBottom: "1px solid #111827" }}>Actions</th>
                 </tr>
@@ -461,6 +497,11 @@ export default function StudentsPage({ currentAdmin }) {
                           {getRoleLabel(u)}
                         </span>
                       </td>
+                      <td style={{ padding: 10, borderBottom: "1px solid #111827" }}>
+                        <span className="admin-badge" style={getStatusStyle(u)}>
+                          {u.status === "blocked" ? "Blocked" : "Active"}
+                        </span>
+                      </td>
                       <td style={{ padding: 10, borderBottom: "1px solid #111827", color: "#9ca3af" }}>
                         {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "-"}
                       </td>
@@ -483,6 +524,12 @@ export default function StudentsPage({ currentAdmin }) {
                             Make Admin
                           </ActionButton>
                         )}
+                        <ActionButton
+                          onClick={() => handleStatusChange(u, u.status === "blocked" ? "active" : "blocked")}
+                          disabled={editDisabled}
+                        >
+                          {u.status === "blocked" ? "Unblock" : "Block"}
+                        </ActionButton>
                         <ActionButton
                           danger
                           onClick={() => handleDelete(u)}

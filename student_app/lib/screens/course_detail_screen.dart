@@ -27,8 +27,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   Map<String, dynamic>? _course;
 
   final _addressController = TextEditingController();
+  final _aadharController = TextEditingController();
+  final _mobileController = TextEditingController();
   final _teacherNameController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _messageController = TextEditingController();
   bool _submitting = false;
 
@@ -53,8 +54,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   void dispose() {
     _razorpay.clear();
     _addressController.dispose();
+    _aadharController.dispose();
+    _mobileController.dispose();
     _teacherNameController.dispose();
-    _phoneController.dispose();
     _messageController.dispose();
     super.dispose();
   }
@@ -89,14 +91,17 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     if (!_modeOfflineAvailable) return;
 
     final address = _addressController.text.trim();
+    final aadharNumber = _aadharController.text.replaceAll(RegExp(r'\D'), '');
+    final mobileNumber = _mobileController.text.replaceAll(RegExp(r'\D'), '');
     final teacherName = _teacherNameController.text.trim();
-    final phone = _phoneController.text.trim();
     final message = _messageController.text.trim();
 
-    if (address.isEmpty || teacherName.isEmpty || phone.isEmpty) {
+    if (address.isEmpty || aadharNumber.length != 12 || mobileNumber.length != 10) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please fill address, teacher name, and phone.'),
+          content: Text(
+            'Please enter address, 12-digit Aadhaar number and 10-digit mobile number.',
+          ),
         ),
       );
       return;
@@ -110,8 +115,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         studentId: widget.student.id,
         courseId: widget.courseId,
         address: address,
+        aadharNumber: aadharNumber,
+        mobileNumber: mobileNumber,
         teacherName: teacherName,
-        phone: phone,
         message: message,
       );
 
@@ -467,7 +473,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                             ),
                           const SizedBox(height: 16),
                           const Text(
-                            'Offline details',
+                            'Student registration details',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -477,18 +483,27 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                           const SizedBox(height: 8),
                           _buildDarkTextField(
                             controller: _addressController,
-                            label: 'Your address',
+                            label: 'Student address',
+                            maxLines: 3,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildDarkTextField(
+                            controller: _aadharController,
+                            label: 'Aadhaar number',
+                            keyboardType: TextInputType.number,
+                            maxLength: 12,
+                          ),
+                          const SizedBox(height: 8),
+                          _buildDarkTextField(
+                            controller: _mobileController,
+                            label: 'Mobile number',
+                            keyboardType: TextInputType.phone,
+                            maxLength: 10,
                           ),
                           const SizedBox(height: 8),
                           _buildDarkTextField(
                             controller: _teacherNameController,
-                            label: "Sir's name",
-                          ),
-                          const SizedBox(height: 8),
-                          _buildDarkTextField(
-                            controller: _phoneController,
-                            label: 'Phone number',
-                            keyboardType: TextInputType.phone,
+                            label: "Teacher / reference name (optional)",
                           ),
                           const SizedBox(height: 8),
                           _buildDarkTextField(
@@ -539,13 +554,16 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     required String label,
     int maxLines = 1,
     TextInputType? keyboardType,
+    int? maxLength,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      maxLength: maxLength,
       style: const TextStyle(color: Colors.white),
       decoration: InputDecoration(
+        counterStyle: const TextStyle(color: Color(0xFF6B7280), fontSize: 10),
         labelText: label,
         labelStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
         filled: true,
