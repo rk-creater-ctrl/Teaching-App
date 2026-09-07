@@ -37,7 +37,9 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
   String _title = 'Live class';
   String _viewerStatus = 'Connecting';
   bool _controlsVisible = true;
-  bool _audioMuted = false;
+  // Android WebView permits autoplay when the remote video begins muted.
+  // Students can use the existing audio control to unmute after joining.
+  bool _audioMuted = true;
   bool _handRaised = false;
   bool _chatOpen = false;
   final ValueNotifier<Duration> _elapsed = ValueNotifier(Duration.zero);
@@ -144,12 +146,13 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
         });
         await _configureViewerPage();
       } else {
-        final controller = WebViewController()
-          ..setJavaScriptMode(JavaScriptMode.unrestricted)
-          ..setNavigationDelegate(
-            NavigationDelegate(onPageFinished: (_) => _configureViewerPage()),
-          )
-          ..loadRequest(viewerUri);
+        final controller = WebViewController();
+        await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+        await controller.setMediaPlaybackRequiresUserGesture(false);
+        await controller.setNavigationDelegate(
+          NavigationDelegate(onPageFinished: (_) => _configureViewerPage()),
+        );
+        await controller.loadRequest(viewerUri);
 
         if (!mounted) return;
         setState(() {
