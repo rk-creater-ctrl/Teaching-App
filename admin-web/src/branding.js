@@ -1,4 +1,4 @@
-export const FIXED_BRAND_NAME = "SR EduNova";
+export const FIXED_BRAND_NAME = "Techjaguar";
 export const DEFAULT_INSTITUTE_NAME = "Your Institute Name";
 
 function legacyInstituteName(value) {
