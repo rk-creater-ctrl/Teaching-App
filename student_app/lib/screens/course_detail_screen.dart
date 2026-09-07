@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:dio/dio.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../models/enrollment.dart';
@@ -235,6 +236,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
 
     try {
       final api = ApiClient();
+      if (kDebugMode) {
+        debugPrint('Enrollment submit: courseId=${widget.courseId} url=${api.baseUrl}/enrollment');
+      }
       final res = await api.requestOfflineAdmission(
         courseId: widget.courseId,
         address: address,
@@ -245,6 +249,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       );
 
       final data = res.data as Map<String, dynamic>?;
+      if (kDebugMode) {
+        debugPrint('Enrollment submit success: status=${res.statusCode} data=$data');
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -252,10 +259,31 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
         ),
       );
       await _loadCourse();
-    } catch (e) {
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+          'Enrollment submit failed: type=${e.type} status=${e.response?.statusCode} '
+          'message=${e.message} response=${e.response?.data}',
+        );
+      }
+      if (!mounted) return;
+      final responseData = e.response?.data;
+      final serverMessage = responseData is Map
+          ? (responseData['message'] ?? responseData['error'])?.toString()
+          : responseData?.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            serverMessage?.isNotEmpty == true
+                ? serverMessage!
+                : 'Could not create enrollment request. Check your connection and try again.',
+          ),
+        ),
+      );
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error creating enrollment request')),
+        const SnackBar(content: Text('Could not create enrollment request. Please try again.')),
       );
     } finally {
       if (mounted) {
@@ -268,6 +296,11 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     if (raw.startsWith('http')) return raw;
     // adjust host (10.0.2.2, LAN IP, or domain)
     return '${ApiClient().baseUrl}/${raw.replaceFirst(RegExp(r'^/+'), '')}';
+  }
+
+  bool _hasCoverImage(Map<String, dynamic> course) {
+    final value = course['coverImageUrl']?.toString().trim() ?? '';
+    return value.isNotEmpty;
   }
 
   @override
@@ -361,18 +394,18 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                               top: Radius.circular(20),
                             ),
                             color: Colors.black,
-                            image: c['coverImageUrl'] != null
+                            image: _hasCoverImage(c)
                                 ? DecorationImage(
                                     image: NetworkImage(
                                       _buildCoverUrl(
-                                        c['coverImageUrl'] as String,
+                                        c['coverImageUrl'].toString(),
                                       ),
                                     ),
                                     fit: BoxFit.cover,
                                   )
                                 : null,
                           ),
-                          child: c['coverImageUrl'] == null
+                          child: !_hasCoverImage(c)
                               ? const Center(
                                   child: Icon(
                                     Icons.menu_book_rounded,

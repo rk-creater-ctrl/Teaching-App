@@ -73,7 +73,8 @@ export default function AdminLogin({ onLogin, appSettings }) {
       onLogin(adminWithToken);
     } catch (err) {
       console.error(err);
-      setError(err.response?.data || "Invalid credentials");
+      const responseMessage = err.response?.data?.message || err.response?.data?.error;
+      setError(typeof responseMessage === "string" ? responseMessage : "Invalid credentials");
     } finally {
       setLoading(false);
     }

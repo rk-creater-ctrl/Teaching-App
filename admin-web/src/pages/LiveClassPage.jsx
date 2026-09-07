@@ -335,7 +335,13 @@ export default function LiveClassPage() {
         localVideoRef.current.srcObject = stream;
       }
 
-      const socket = io(API_URL, { transports: ["websocket", "polling"] });
+      const socket = io(API_URL, {
+        // Begin with polling for a reliable Render connection, then upgrade
+        // automatically when WebSocket is available.
+        transports: ["polling", "websocket"],
+        upgrade: true,
+        tryAllTransports: true,
+      });
       socketRef.current = socket;
 
       socket.on("connect", () => {
