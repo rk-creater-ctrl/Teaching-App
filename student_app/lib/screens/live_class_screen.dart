@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_windows/webview_windows.dart' as windows_webview;
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
@@ -148,7 +149,10 @@ class _LiveClassScreenState extends State<LiveClassScreen> {
       } else {
         final controller = WebViewController();
         await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-        await controller.setMediaPlaybackRequiresUserGesture(false);
+        if (controller.platform is AndroidWebViewController) {
+          await (controller.platform as AndroidWebViewController)
+              .setMediaPlaybackRequiresUserGesture(false);
+        }
         await controller.setNavigationDelegate(
           NavigationDelegate(onPageFinished: (_) => _configureViewerPage()),
         );

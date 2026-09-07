@@ -15,6 +15,7 @@ dependencies:
    
   url_launcher: ^6.3.0
   webview_flutter: ^4.13.1
+  webview_flutter_android: ^4.10.15
   webview_windows: ^0.4.0
   youtube_player_iframe: ^5.1.2
  # check latest version on pub.dev[web:289]
