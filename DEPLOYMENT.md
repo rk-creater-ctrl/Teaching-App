@@ -16,7 +16,6 @@ Set these values in Render:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `FRONTEND_URLS` (the Vercel URL; comma-separate multiple URLs)
 - `BASE_URL` (the Render service URL)
-- Razorpay keys if payments are enabled
 
 Render generates `JWT_SECRET`. Keep it stable or existing login tokens will
 become invalid.

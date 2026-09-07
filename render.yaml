@@ -19,7 +19,3 @@ services:
         sync: false
       - key: BASE_URL
         sync: false
-      - key: RAZORPAY_KEY_ID
-        sync: false
-      - key: RAZORPAY_KEY_SECRET
-        sync: false

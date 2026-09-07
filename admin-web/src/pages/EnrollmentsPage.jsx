@@ -189,6 +189,34 @@ export default function EnrollmentsPage() {
     }
   };
 
+  const handleReject = async (id) => {
+    if (!window.confirm("Reject this pending enrollment? The student may apply again.")) return;
+    setMarkingId(id);
+    try {
+      await api.post(`/enrollment/reject/${id}`);
+      await loadEnrollments();
+    } catch (err) {
+      console.error(err);
+      alert(apiError(err, "Error rejecting enrollment"));
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
+  const handleComplete = async (id) => {
+    if (!window.confirm("Mark this active enrollment as completed?")) return;
+    setMarkingId(id);
+    try {
+      await api.post(`/enrollment/complete/${id}`);
+      await loadEnrollments();
+    } catch (err) {
+      console.error(err);
+      alert(apiError(err, "Error completing enrollment"));
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
   const handleViewDetails = (enrollment) => {
     window.alert(enrollmentDetailsText(enrollment));
   };
@@ -339,6 +367,8 @@ export default function EnrollmentsPage() {
                           ? badge("#0369a1", "#e0f2fe")
                           : e.status === "completed"
                           ? badge("#15803d", "#dcfce7")
+                          : e.status === "rejected"
+                          ? badge("#991b1b", "#fecaca")
                           : badge("#4b5563", "#e5e7eb")
                       }
                     >
@@ -346,7 +376,8 @@ export default function EnrollmentsPage() {
                     </span>
                   </td>
                   <td style={{ padding: 10, borderBottom: "1px solid #111827" }}>
-                    {e.paymentStatus === "unpaid" ? (
+                    {e.status === "pending" ? (
+                      <>
                       <button
                         style={buttonSmall}
                         onClick={() => handleMarkPaid(e._id)}
@@ -354,7 +385,16 @@ export default function EnrollmentsPage() {
                       >
                         {markingId === e._id ? "Updating..." : "Mark as Paid"}
                       </button>
-                    ) : (
+                      <button
+                        style={{ ...buttonSmall, borderColor: "#b91c1c", color: "#fecaca", marginLeft: 6 }}
+                        onClick={() => handleReject(e._id)}
+                        disabled={markingId === e._id}
+                      >
+                        Reject
+                      </button>
+                      </>
+                    ) : e.status === "active" ? (
+                      <>
                       <button
                         style={{
                           ...buttonSmall,
@@ -367,7 +407,15 @@ export default function EnrollmentsPage() {
                       >
                         {markingId === e._id ? "Updating..." : "Mark Unpaid"}
                       </button>
-                    )}
+                      <button
+                        style={{ ...buttonSmall, borderColor: "#15803d", color: "#bbf7d0" }}
+                        onClick={() => handleComplete(e._id)}
+                        disabled={markingId === e._id}
+                      >
+                        Complete Course
+                      </button>
+                      </>
+                    ) : null}
                     <button
                       style={{
                         ...buttonSmall,

@@ -27,17 +27,42 @@ class Enrollment {
     required this.expiresAt,
   });
 
+  /// Normalizes the course reference returned by the enrollment API.
+  /// The API can return a UUID directly or a populated course object.
+  static String courseIdFromValue(Object? value) {
+    if (value is Map) {
+      return _stringValue(
+            value['_id'] ??
+                value['id'] ??
+                value['courseId'] ??
+                value['course_id'],
+          ) ??
+          '';
+    }
+    return _stringValue(value) ?? '';
+  }
+
+  static String? _stringValue(Object? value) {
+    final normalized = value?.toString().trim();
+    return normalized == null || normalized.isEmpty ? null : normalized;
+  }
+
   factory Enrollment.fromJson(Map<String, dynamic> json) {
-    final course = json['courseId'] as Map<String, dynamic>?;
-    final rawCourseId = course?['_id'] ?? json['courseId'];
-    final rawCreatedAt = json['createdAt'];
-    final rawExpiresAt = json['expiresAt'];
+    final rawCourse = json['courseId'] ?? json['course_id'];
+    final course = rawCourse is Map
+        ? Map<String, dynamic>.from(rawCourse)
+        : <String, dynamic>{};
+    final rawCreatedAt = json['createdAt'] ?? json['created_at'];
+    final rawExpiresAt = json['expiresAt'] ?? json['expires_at'];
+    final status = _stringValue(
+      json['status'] ?? json['enrollmentStatus'] ?? json['enrollment_status'],
+    );
 
     return Enrollment(
-      id: json['_id'] ?? '',
-      courseId: rawCourseId is String ? rawCourseId : '',
+      id: _stringValue(json['_id'] ?? json['id']) ?? '',
+      courseId: courseIdFromValue(rawCourse),
       paymentStatus: json['paymentStatus'] ?? 'unpaid',
-      status: json['status'] ?? 'pending',
+      status: status?.toLowerCase() ?? 'pending',
       mode: json['mode'] ?? '',
       courseTitle: course?['title'] ?? 'Course Unavailable',
       courseDescription: course?['description'] ?? '',

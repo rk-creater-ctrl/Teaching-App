@@ -10,11 +10,13 @@ import 'profile_screen.dart';
 class MainShell extends StatefulWidget {
   final Student student;
   final AppSettings settings;
+  final Future<void> Function() onLogout;
 
   const MainShell({
     super.key,
     required this.student,
     this.settings = AppSettings.fallback,
+    required this.onLogout,
   });
 
   @override
@@ -60,6 +62,7 @@ class _MainShellState extends State<MainShell> {
         student: _student,
         settings: _settings,
         onStudentUpdated: (student) => setState(() => _student = student),
+        onLogout: widget.onLogout,
       ),
     ];
 

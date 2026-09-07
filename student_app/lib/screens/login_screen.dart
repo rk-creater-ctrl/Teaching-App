@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../models/student.dart';
-import '../services/session_store.dart';
 import '../theme/student_ui.dart';
-import 'main_shell.dart';
 
 enum AuthMode { login, register }
 
 class LoginScreen extends StatefulWidget {
   final AppSettings initialSettings;
+  final Future<void> Function(String token, Student student)? onAuthenticated;
 
   const LoginScreen({
     super.key,
     this.initialSettings = AppSettings.fallback,
+    this.onAuthenticated,
   });
 
   @override
@@ -43,7 +43,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void didUpdateWidget(covariant LoginScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final settingsChanged = oldWidget.initialSettings.brandName !=
+    final settingsChanged =
+        oldWidget.initialSettings.brandName !=
             widget.initialSettings.brandName ||
         oldWidget.initialSettings.instituteName !=
             widget.initialSettings.instituteName ||
@@ -131,17 +132,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
       api.setToken(token);
       final student = Student.fromJson(Map<String, dynamic>.from(userJson));
-      await SessionStore.saveSession(token: token, student: student);
-
+      if (widget.onAuthenticated != null) {
+        await widget.onAuthenticated!(token, student);
+        return;
+      }
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => MainShell(
-            student: student,
-            settings: _settings,
-          ),
-        ),
-      );
+      Navigator.of(context).pop();
     } catch (e) {
       setState(() {
         _error = _isRegistering
@@ -197,10 +193,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               children: [
                                 Text(
                                   _settings.brandName,
-                                  style: theme.textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
@@ -321,8 +318,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Text(
                             _loading
                                 ? (_isRegistering
-                                    ? 'Creating account...'
-                                    : 'Signing in...')
+                                      ? 'Creating account...'
+                                      : 'Signing in...')
                                 : (_isRegistering ? 'Sign up' : 'Login'),
                             style: const TextStyle(
                               fontWeight: FontWeight.w700,
@@ -337,10 +334,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: _loading
                               ? null
                               : () => _setMode(
-                                    _isRegistering
-                                        ? AuthMode.login
-                                        : AuthMode.register,
-                                  ),
+                                  _isRegistering
+                                      ? AuthMode.login
+                                      : AuthMode.register,
+                                ),
                           child: Text(
                             _isRegistering
                                 ? 'Already have an account? Login'
@@ -376,14 +373,8 @@ class _LoginScreenState extends State<LoginScreen> {
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(
-          color: Color(0xFF9CA3AF),
-          fontSize: 13,
-        ),
-        prefixIcon: Icon(
-          icon,
-          color: const Color(0xFF9CA3AF),
-        ),
+        labelStyle: const TextStyle(color: Color(0xFF9CA3AF), fontSize: 13),
+        prefixIcon: Icon(icon, color: const Color(0xFF9CA3AF)),
         filled: true,
         fillColor: const Color(0xFF020617),
         enabledBorder: OutlineInputBorder(

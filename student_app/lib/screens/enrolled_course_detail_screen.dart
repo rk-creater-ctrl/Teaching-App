@@ -5,6 +5,7 @@ import '../models/enrollment.dart';
 import '../models/learning_module.dart';
 import '../models/student.dart';
 import '../theme/student_ui.dart';
+import 'live_class_screen.dart';
 import 'videos_screen.dart';
 
 class EnrolledCourseDetailScreen extends StatefulWidget {
@@ -27,86 +28,103 @@ class EnrolledCourseDetailScreen extends StatefulWidget {
 class _EnrolledCourseDetailScreenState
     extends State<EnrolledCourseDetailScreen> {
   bool _loading = true;
-  bool _saving = false;
-  String? _error;
-  Set<String> _completedLessonIds = {};
-
-  List<CourseLesson> get _lessons => defaultCourseLessons(widget.enrollment);
+  int _completedVideoCount = 0;
+  int _totalVideoCount = 0;
+  String? _courseId;
+  bool _hasCourseLive = false;
+  String? _courseLiveTitle;
+  String? _courseLiveStatus;
+  String? _courseLiveScheduledAt;
+  bool _courseLiveJoinable = false;
 
   @override
   void initState() {
     super.initState();
-    _loadProgress();
+    _loadCourseContent();
   }
 
-  Future<void> _loadProgress() async {
+  Future<String?> _resolveCourseId() async {
+    final enrollmentCourseId = widget.enrollment.courseId.trim();
+    if (enrollmentCourseId.isNotEmpty) return enrollmentCourseId;
+
+    final res = await ApiClient().getCourses();
+    final matchingIds = (res.data as List<dynamic>)
+        .whereType<Map>()
+        .map((course) => Map<String, dynamic>.from(course))
+        .where((course) => course['title'] == widget.enrollment.courseTitle)
+        .map((course) => '${course['_id'] ?? course['id'] ?? ''}'.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    return matchingIds.length == 1 ? matchingIds.single : null;
+  }
+
+  Future<void> _loadCourseContent() async {
     setState(() {
       _loading = true;
-      _error = null;
     });
 
     try {
-      final res = await ApiClient().getCourseProgress(
-        widget.student.id,
-        widget.enrollment.courseId,
-      );
-      final data = Map<String, dynamic>.from(res.data as Map);
-      final completed = (data['completedLessonIds'] as List<dynamic>? ?? [])
-          .map((item) => '$item')
-          .toSet();
-
+      final courseId = await _resolveCourseId();
       if (!mounted) return;
-      setState(() {
-        _completedLessonIds = completed;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Could not load progress';
-        _loading = false;
-      });
-    }
-  }
-
-  Future<void> _toggleLesson(CourseLesson lesson, bool completed) async {
-    setState(() {
-      _saving = true;
-      if (completed) {
-        _completedLessonIds.add(lesson.id);
-      } else {
-        _completedLessonIds.remove(lesson.id);
+      if (courseId == null) {
+        setState(() => _loading = false);
+        return;
       }
-    });
 
-    try {
-      final res = await ApiClient().updateCourseProgress(
-        studentId: widget.student.id,
-        courseId: widget.enrollment.courseId,
-        lessonId: lesson.id,
-        completed: completed,
-      );
-      final data = Map<String, dynamic>.from(res.data as Map);
-      final completedIds = (data['completedLessonIds'] as List<dynamic>? ?? [])
-          .map((item) => '$item')
-          .toSet();
+      _courseId = courseId;
+      var completedCount = _completedVideoCount;
+      var totalCount = _totalVideoCount;
+      var hasCourseLive = false;
+      String? courseLiveTitle;
+      String? courseLiveStatus;
+      String? courseLiveScheduledAt;
+      var courseLiveJoinable = false;
 
-      if (!mounted) return;
-      setState(() => _completedLessonIds = completedIds);
-    } catch (e) {
+      try {
+        final res = await ApiClient().getCourseProgress(
+          widget.student.id,
+          courseId,
+        );
+        final data = Map<String, dynamic>.from(res.data as Map);
+        completedCount = (data['completedCount'] as num?)?.toInt() ?? 0;
+        totalCount = (data['totalCount'] as num?)?.toInt() ?? 0;
+      } catch (_) {
+        // Progress is optional for the course video experience.
+      }
+
+      try {
+        final res = await ApiClient().getCourseLiveClass(courseId);
+        final data = Map<String, dynamic>.from(res.data as Map);
+        hasCourseLive = data['hasLive'] == true;
+        courseLiveTitle = data['title'] as String?;
+        courseLiveStatus = data['status'] as String?;
+        courseLiveScheduledAt = data['scheduledAt'] as String?;
+        courseLiveJoinable =
+            hasCourseLive &&
+            courseLiveStatus == 'live' &&
+            data['activeMode'] == 'internal' &&
+            data['internalLiveActive'] == true;
+      } catch (_) {
+        // The course page remains usable when optional live metadata fails.
+      }
+
       if (!mounted) return;
       setState(() {
-        if (completed) {
-          _completedLessonIds.remove(lesson.id);
-        } else {
-          _completedLessonIds.add(lesson.id);
-        }
+        _completedVideoCount = completedCount;
+        _totalVideoCount = totalCount;
+        _hasCourseLive = hasCourseLive;
+        _courseLiveTitle = courseLiveTitle;
+        _courseLiveStatus = courseLiveStatus;
+        _courseLiveScheduledAt = courseLiveScheduledAt;
+        _courseLiveJoinable = courseLiveJoinable;
+        _loading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save progress')),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
+    } catch (e) {
+      if (!mounted) return;
+      // Progress is optional for the course video experience. Keep the course
+      // and its authorized Videos action available if this request fails.
+      setState(() => _loading = false);
     }
   }
 
@@ -120,12 +138,9 @@ class _EnrolledCourseDetailScreenState
   @override
   Widget build(BuildContext context) {
     final enrollment = widget.enrollment;
-    final completedCount = _completedLessonIds.length;
-    final totalCount = _lessons.length;
-    final progress = progressFor(
-      completedCount: completedCount,
-      totalCount: totalCount,
-    );
+    final completedCount = _completedVideoCount;
+    final totalCount = _totalVideoCount;
+    final progress = totalCount == 0 ? 0.0 : completedCount / totalCount;
 
     return Scaffold(
       backgroundColor: StudentColors.bg,
@@ -139,7 +154,10 @@ class _EnrolledCourseDetailScreenState
             const SizedBox(width: 10),
             const Text(
               'My course',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -154,74 +172,81 @@ class _EnrolledCourseDetailScreenState
                 StudentSkeletonCard(height: 92),
               ],
             )
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: StudentEmptyState(
-                      icon: Icons.sync_problem_rounded,
-                      title: 'Progress unavailable',
-                      message: _error!,
-                      actionLabel: 'Retry',
-                      onAction: _loadProgress,
+          : RefreshIndicator(
+              onRefresh: _loadCourseContent,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _CourseHero(
+                    enrollment: enrollment,
+                    coverUrl: _coverUrl(),
+                    progress: progress,
+                    completedCount: completedCount,
+                    totalCount: totalCount,
+                  ),
+                  const SizedBox(height: 18),
+                  if (_courseId != null)
+                    _ResourcePanel(
+                      onVideos: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => VideosScreen(
+                              settings: widget.settings,
+                              student: widget.student,
+                              courseId: _courseId,
+                              courseTitle: enrollment.courseTitle,
+                              onCourseProgressChanged: _loadCourseContent,
+                            ),
+                          ),
+                        );
+                        if (mounted) await _loadCourseContent();
+                      },
+                    )
+                  else
+                    const StudentEmptyState(
+                      icon: Icons.video_library_outlined,
+                      title: 'Course videos unavailable',
+                      message: 'This course could not be identified safely.',
+                    ),
+                  const SizedBox(height: 12),
+                  _CourseLivePanel(
+                    title: _courseLiveTitle,
+                    status: _courseLiveStatus,
+                    scheduledAt: _courseLiveScheduledAt,
+                    hasLive: _hasCourseLive,
+                    joinable: _courseLiveJoinable,
+                    onJoin: _courseId == null || !_courseLiveJoinable
+                        ? null
+                        : () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => LiveClassScreen(
+                                  student: widget.student,
+                                  settings: widget.settings,
+                                  courseId: _courseId,
+                                ),
+                              ),
+                            );
+                            if (mounted) await _loadCourseContent();
+                          },
+                  ),
+                  const SizedBox(height: 18),
+                  const StudentSectionHeader(
+                    title: 'Course progress',
+                    subtitle: 'Progress is based on completed course videos.',
+                    icon: Icons.task_alt_rounded,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '$completedCount of $totalCount videos completed',
+                    style: const TextStyle(
+                      color: StudentColors.muted,
+                      fontSize: 13,
                     ),
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadProgress,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      _CourseHero(
-                        enrollment: enrollment,
-                        coverUrl: _coverUrl(),
-                        progress: progress,
-                        completedCount: completedCount,
-                        totalCount: totalCount,
-                      ),
-                      const SizedBox(height: 18),
-                      const StudentSectionHeader(
-                        title: 'Learning modules',
-                        subtitle: 'Tick lessons as you complete them.',
-                        icon: Icons.task_alt_rounded,
-                      ),
-                      const SizedBox(height: 12),
-                      if (!enrollment.isPaid) ...[
-                        const StudentEmptyState(
-                          icon: Icons.hourglass_bottom_rounded,
-                          title: 'Admission pending',
-                          message:
-                              'Modules unlock after your fee request is approved.',
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      ..._lessons.map((lesson) {
-                        final completed = _completedLessonIds.contains(lesson.id);
-                        return _LessonTile(
-                          lesson: lesson,
-                          completed: completed,
-                          saving: _saving,
-                          enabled: enrollment.isPaid,
-                          onChanged: (value) =>
-                              _toggleLesson(lesson, value ?? false),
-                        );
-                      }),
-                      const SizedBox(height: 18),
-                      _ResourcePanel(
-                        onVideos: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => VideosScreen(
-                                settings: widget.settings,
-                                student: widget.student,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
+                ],
+              ),
+            ),
     );
   }
 }
@@ -307,7 +332,10 @@ class _CourseHero extends StatelessWidget {
                           : StudentColors.orange,
                     ),
                     const SizedBox(width: 8),
-                    _miniBadge('Rs. ${enrollment.coursePrice}', StudentColors.blue),
+                    _miniBadge(
+                      'Rs. ${enrollment.coursePrice}',
+                      StudentColors.blue,
+                    ),
                     if (enrollment.category.isNotEmpty) ...[
                       const SizedBox(width: 8),
                       _miniBadge(enrollment.category, StudentColors.purple),
@@ -317,9 +345,7 @@ class _CourseHero extends StatelessWidget {
                 const SizedBox(height: 14),
                 Row(
                   children: [
-                    Expanded(
-                      child: StudentProgressBar(value: progress),
-                    ),
+                    Expanded(child: StudentProgressBar(value: progress)),
                     const SizedBox(width: 10),
                     Text(
                       '${(progress * 100).round()}%',
@@ -472,7 +498,7 @@ class _ResourcePanel extends StatelessWidget {
                 ),
                 SizedBox(height: 3),
                 Text(
-                  'Use the video library for extra practice.',
+                  'Watch videos included with this course.',
                   style: TextStyle(color: StudentColors.muted, fontSize: 12),
                 ),
               ],
@@ -480,11 +506,93 @@ class _ResourcePanel extends StatelessWidget {
           ),
           IconButton(
             onPressed: onVideos,
-            icon: const Icon(
-              Icons.arrow_forward_rounded,
-              color: Colors.white,
+            icon: const Icon(Icons.arrow_forward_rounded, color: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CourseLivePanel extends StatelessWidget {
+  final String? title;
+  final String? status;
+  final String? scheduledAt;
+  final bool hasLive;
+  final bool joinable;
+  final VoidCallback? onJoin;
+
+  const _CourseLivePanel({
+    required this.title,
+    required this.status,
+    required this.scheduledAt,
+    required this.hasLive,
+    required this.joinable,
+    required this.onJoin,
+  });
+
+  String get _statusText {
+    if (!hasLive) return 'No live class available';
+    if (joinable) return 'Live now';
+    if (status == 'ended') return 'This live class has ended';
+    final scheduled = DateTime.tryParse(scheduledAt ?? '');
+    if (scheduled != null) {
+      final local = scheduled.toLocal();
+      return 'Scheduled for ${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')} '
+          '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
+    }
+    return 'Not started yet';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: studentCardDecoration(),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: (joinable ? StudentColors.red : StudentColors.purple)
+                  .withOpacity(0.14),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              joinable ? Icons.wifi_tethering_rounded : Icons.live_tv_rounded,
+              color: joinable ? StudentColors.red : StudentColors.purple,
             ),
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title?.trim().isNotEmpty == true ? title! : 'Live class',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _statusText,
+                  style: const TextStyle(
+                    color: StudentColors.muted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (joinable)
+            TextButton.icon(
+              onPressed: onJoin,
+              icon: const Icon(Icons.play_arrow_rounded, size: 18),
+              label: const Text('Join'),
+            ),
         ],
       ),
     );

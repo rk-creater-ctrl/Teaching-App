@@ -4,18 +4,19 @@ import '../models/app_settings.dart';
 import '../models/student.dart';
 import '../services/session_store.dart';
 import '../theme/student_ui.dart';
-import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Student student;
   final AppSettings settings;
   final ValueChanged<Student>? onStudentUpdated;
+  final Future<void> Function()? onLogout;
 
   const ProfileScreen({
     super.key,
     required this.student,
     this.settings = AppSettings.fallback,
     this.onStudentUpdated,
+    this.onLogout,
   });
 
   @override
@@ -80,16 +81,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!mounted) return;
       setState(() => _student = updated);
-      await SessionStore.updateStudent(updated);
       widget.onStudentUpdated?.call(updated);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Profile updated')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not update profile')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not update profile')));
     } finally {
       if (mounted) setState(() => _savingProfile = false);
     }
@@ -235,7 +235,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 10),
             const Text(
               'Profile',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ),
@@ -314,7 +317,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   child: Text(
-                    _student.role == 'admin' ? 'Admin account' : 'Active student',
+                    _student.role == 'admin'
+                        ? 'Admin account'
+                        : 'Active student',
                     style: const TextStyle(
                       fontSize: 11,
                       color: Color(0xFFBBF7D0),
@@ -399,13 +404,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label: 'Logout',
             color: StudentColors.orange,
             onTap: () async {
-              await SessionStore.clear();
+              if (widget.onLogout != null) {
+                await widget.onLogout!();
+                return;
+              }
+              await SessionStore.clear(studentId: _student.id);
               ApiClient().setToken(null);
               if (!context.mounted) return;
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              );
+              Navigator.of(context).popUntil((route) => route.isFirst);
             },
           ),
         ],

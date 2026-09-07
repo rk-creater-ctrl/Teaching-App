@@ -17,9 +17,7 @@ class ApiClient {
         ),
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 10),
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: {'Content-Type': 'application/json'},
       ),
     );
   }
@@ -46,10 +44,10 @@ class ApiClient {
   }
 
   Future<Response> login(String username, String password) {
-    return dio.post('/auth/login', data: {
-      'username': username,
-      'password': password,
-    });
+    return dio.post(
+      '/auth/login',
+      data: {'username': username, 'password': password},
+    );
   }
 
   Future<Response> register({
@@ -57,11 +55,10 @@ class ApiClient {
     required String username,
     required String password,
   }) {
-    return dio.post('/auth/register', data: {
-      'fullName': fullName,
-      'username': username,
-      'password': password,
-    });
+    return dio.post(
+      '/auth/register',
+      data: {'fullName': fullName, 'username': username, 'password': password},
+    );
   }
 
   Future<Response> getMe() {
@@ -72,20 +69,20 @@ class ApiClient {
     required String fullName,
     required String username,
   }) {
-    return dio.put('/auth/me', data: {
-      'fullName': fullName,
-      'username': username,
-    });
+    return dio.put(
+      '/auth/me',
+      data: {'fullName': fullName, 'username': username},
+    );
   }
 
   Future<Response> updatePassword({
     required String currentPassword,
     required String newPassword,
   }) {
-    return dio.put('/auth/me/password', data: {
-      'currentPassword': currentPassword,
-      'newPassword': newPassword,
-    });
+    return dio.put(
+      '/auth/me/password',
+      data: {'currentPassword': currentPassword, 'newPassword': newPassword},
+    );
   }
 
   // ---------- Courses ----------
@@ -102,7 +99,6 @@ class ApiClient {
   // ---------- Enrollments / Fees ----------
 
   Future<Response> requestOfflineAdmission({
-    required String studentId,
     required String courseId,
     required String address,
     required String aadharNumber,
@@ -110,21 +106,23 @@ class ApiClient {
     required String teacherName,
     String? message,
   }) {
-    return dio.post('/enrollment', data: {
-      'studentId': studentId,
-      'courseId': courseId,
-      'mode': 'offline',
-      'paymentType': 'offline',
-      'offlineDetails': {
-        'address': address,
-        'studentAddress': address,
-        'aadharNumber': aadharNumber,
-        'mobileNumber': mobileNumber,
-        'teacherName': teacherName,
-        'phone': mobileNumber,
-        'message': message ?? '',
+    return dio.post(
+      '/enrollment',
+      data: {
+        'courseId': courseId,
+        'mode': 'offline',
+        'paymentType': 'offline',
+        'offlineDetails': {
+          'address': address,
+          'studentAddress': address,
+          'aadharNumber': aadharNumber,
+          'mobileNumber': mobileNumber,
+          'teacherName': teacherName,
+          'phone': mobileNumber,
+          'message': message ?? '',
+        },
       },
-    });
+    );
   }
 
   Future<Response> getMyFees(String studentId) {
@@ -142,13 +140,13 @@ class ApiClient {
   Future<Response> updateCourseProgress({
     required String studentId,
     required String courseId,
-    required String lessonId,
+    required String videoId,
     required bool completed,
   }) {
-    return dio.put('/progress/$studentId/$courseId', data: {
-      'lessonId': lessonId,
-      'completed': completed,
-    });
+    return dio.put(
+      '/progress/$studentId/$courseId',
+      data: {'videoId': videoId, 'completed': completed},
+    );
   }
 
   // ---------- Generic POST helper ----------
@@ -157,23 +155,29 @@ class ApiClient {
     return dio.post(path, data: data);
   }
 
-  // ---------- Live class (global) ----------
+  // ---------- Live classes ----------
 
-  // For dashboard: check if student can see live class card
-  Future<Response> getGlobalLiveClass(String studentId) {
-    return dio.get('/live-class/student/$studentId');
+  Future<Response> getGlobalLiveClass() {
+    return dio.get('/live-class/student/global');
   }
 
-  Future<Response> getInternalLiveViewerToken(String studentId) {
-    return dio.post('/live-class/internal/viewer-token', data: {
-      'studentId': studentId,
-    });
+  Future<Response> getCourseLiveClass(String courseId) {
+    return dio.get('/live-class/student/course/$courseId');
   }
 
-  Future<Response> getVideos({String? studentId}) {
-    return dio.get('/video/public', queryParameters: {
-      if (studentId != null) 'studentId': studentId,
-    });
+  Future<Response> getInternalLiveViewerToken({String? courseId}) {
+    return dio.post(
+      '/live-class/internal/viewer-token',
+      data: courseId == null ? null : {'courseId': courseId},
+    );
+  }
+
+  Future<Response> getGlobalVideos() {
+    return dio.get('/video/global');
+  }
+
+  Future<Response> getCourseVideos(String courseId) {
+    return dio.get('/video/course/$courseId');
   }
 
   Future<Response> getMaterials(String studentId) {

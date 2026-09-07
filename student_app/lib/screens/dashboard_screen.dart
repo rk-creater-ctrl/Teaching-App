@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart';
 import '../models/app_settings.dart';
 import '../models/enrollment.dart';
-import '../models/learning_module.dart';
 import '../models/student.dart';
 import '../services/session_store.dart';
 import '../theme/student_ui.dart';
@@ -27,18 +26,19 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen>
-    with WidgetsBindingObserver {
+class _DashboardScreenState extends State<DashboardScreen> {
   bool _loading = true;
+  bool _refreshInFlight = false;
   String? _error;
   List<Enrollment> _enrollments = [];
   List<Map<String, dynamic>> _notifications = [];
-  Map<String, Set<String>> _completedByCourse = {};
+  Map<String, _CourseProgressSummary> _progressByCourse = {};
 
   bool _checkingLive = true;
-  bool _hasLiveAccess = false;
   bool _hasLive = false;
   String? _liveTitle;
+  String? _liveStatus;
+  String? _liveCourseId;
   String _liveMode = 'internal';
   bool _internalLiveActive = false;
   Timer? _liveRefreshTimer;
@@ -46,7 +46,6 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     _loadAll();
     _liveRefreshTimer = Timer.periodic(
       const Duration(seconds: 10),
@@ -57,21 +56,21 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   void dispose() {
     _liveRefreshTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _loadLiveClass();
-  }
-
   Future<void> _loadAll() async {
-    await Future.wait([
-      _loadDashboard(),
-      _loadLiveClass(),
-      _loadNotifications(),
-    ]);
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+    try {
+      await Future.wait([
+        _loadDashboard(),
+        _loadLiveClass(),
+        _loadNotifications(),
+      ]);
+    } finally {
+      _refreshInFlight = false;
+    }
   }
 
   Future<void> _loadNotifications() async {
@@ -85,7 +84,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       setState(() {
         _notifications = list
             .map((item) => Map<String, dynamic>.from(item as Map))
-            .where((item) => !dismissedIds.contains('${item['id'] ?? item['_id'] ?? ''}'))
+            .where(
+              (item) =>
+                  !dismissedIds.contains('${item['id'] ?? item['_id'] ?? ''}'),
+            )
             .toList();
       });
     } catch (_) {}
@@ -106,9 +108,9 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     if (!mounted) return;
     setState(() => _notifications = []);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Notifications cleared')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Notifications cleared')));
   }
 
   Future<void> _loadDashboard() async {
@@ -125,27 +127,31 @@ class _DashboardScreenState extends State<DashboardScreen>
           .map((e) => Enrollment.fromJson(e as Map<String, dynamic>))
           .toList();
 
-      final progressRes = await api.getAllProgress(widget.student.id);
-      final progressList = progressRes.data as List<dynamic>;
-      final progressByCourse = <String, Set<String>>{};
-      for (final item in progressList) {
-        final data = Map<String, dynamic>.from(item as Map);
-        final courseId = '${data['courseId']}';
-        final completed = (data['completedLessonIds'] as List<dynamic>? ?? [])
-            .map((id) => '$id')
-            .toSet();
-        progressByCourse[courseId] = completed;
+      final progressByCourse = <String, _CourseProgressSummary>{};
+      try {
+        final progressRes = await api.getAllProgress(widget.student.id);
+        final progressList = progressRes.data as List<dynamic>;
+        for (final item in progressList) {
+          final data = Map<String, dynamic>.from(item as Map);
+          final courseId = '${data['courseId']}';
+          progressByCourse[courseId] = _CourseProgressSummary(
+            completedCount: (data['completedCount'] as num?)?.toInt() ?? 0,
+            totalCount: (data['totalCount'] as num?)?.toInt() ?? 0,
+          );
+        }
+      } catch (_) {
+        // Enrollment data remains usable when the optional progress request fails.
       }
 
       if (!mounted) return;
       setState(() {
         _enrollments = enrollments;
-        _completedByCourse = progressByCourse;
+        _progressByCourse = progressByCourse;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = 'Error loading dashboard data';
+        if (_enrollments.isEmpty) _error = 'Error loading dashboard data';
       });
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -155,15 +161,16 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _loadLiveClass() async {
     try {
       final api = ApiClient();
-      final res = await api.getGlobalLiveClass(widget.student.id);
+      final res = await api.getGlobalLiveClass();
       final data = res.data as Map<String, dynamic>;
 
       if (!mounted) return;
       setState(() {
         _checkingLive = false;
-        _hasLiveAccess = data['hasAccess'] == true;
         _hasLive = data['hasLive'] == true;
         _liveTitle = data['title'] as String?;
+        _liveStatus = data['status']?.toString().toLowerCase();
+        _liveCourseId = data['courseId']?.toString().trim();
         _liveMode = data['activeMode'] as String? ?? 'internal';
         _internalLiveActive = data['internalLiveActive'] == true;
       });
@@ -171,26 +178,23 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (!mounted) return;
       setState(() {
         _checkingLive = false;
-        _hasLiveAccess = false;
         _hasLive = false;
+        _liveStatus = null;
+        _liveCourseId = null;
       });
     }
   }
 
   int _completedCountFor(Enrollment enrollment) {
-    return _completedByCourse[enrollment.courseId]?.length ?? 0;
+    return _progressByCourse[enrollment.courseId]?.completedCount ?? 0;
   }
 
   double _progressForEnrollment(Enrollment enrollment) {
-    final total = defaultCourseLessons(enrollment).length;
-    return progressFor(
-      completedCount: _completedCountFor(enrollment),
-      totalCount: total,
-    );
+    return _progressByCourse[enrollment.courseId]?.percentage ?? 0;
   }
 
   double get _averageProgress {
-    final active = _enrollments.where((item) => item.isPaid).toList();
+    final active = _activeEnrollments;
     if (active.isEmpty) return 0;
     final total = active.fold<double>(
       0,
@@ -201,8 +205,8 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final active = _enrollments.where((e) => e.isPaid).length;
-    final pending = _enrollments.where((e) => !e.isPaid).length;
+    final active = _activeEnrollments.length;
+    final pending = _pendingEnrollments.length;
 
     return Scaffold(
       backgroundColor: StudentColors.bg,
@@ -210,85 +214,85 @@ class _DashboardScreenState extends State<DashboardScreen>
       body: _loading
           ? _buildSkeleton()
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: StudentEmptyState(
-                      icon: Icons.sync_problem_rounded,
-                      title: 'Dashboard unavailable',
-                      message: _error!,
-                      actionLabel: 'Retry',
-                      onAction: _loadAll,
-                    ),
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadAll,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: StudentEmptyState(
+                  icon: Icons.sync_problem_rounded,
+                  title: 'Dashboard unavailable',
+                  message: _error!,
+                  actionLabel: 'Retry',
+                  onAction: _loadAll,
+                ),
+              ),
+            )
+          : RefreshIndicator(
+              onRefresh: _loadAll,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildWelcomeCard(),
+                  const SizedBox(height: 16),
+                  _buildNotificationPanel(pending),
+                  const SizedBox(height: 20),
+                  Row(
                     children: [
-                      _buildWelcomeCard(),
-                      const SizedBox(height: 16),
-                      _buildNotificationPanel(pending),
-                      const SizedBox(height: 20),
-                      Row(
-                        children: [
-                          _buildStatCard(
-                            'Active courses',
-                            active.toString(),
-                            icon: Icons.play_circle_fill_rounded,
-                            color: StudentColors.green,
-                          ),
-                          const SizedBox(width: 12),
-                          _buildStatCard(
-                            'Pending fees',
-                            pending.toString(),
-                            icon: Icons.receipt_long_rounded,
-                            color: StudentColors.orange,
-                          ),
-                        ],
+                      _buildStatCard(
+                        'Active courses',
+                        active.toString(),
+                        icon: Icons.play_circle_fill_rounded,
+                        color: StudentColors.green,
                       ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _buildStatCard(
-                            'Progress',
-                            '${(_averageProgress * 100).round()}%',
-                            icon: Icons.trending_up_rounded,
-                            color: StudentColors.blue,
-                          ),
-                          const SizedBox(width: 12),
-                          _buildStatCard(
-                            'Videos',
-                            'Learn',
-                            icon: Icons.ondemand_video_rounded,
-                            color: StudentColors.purple,
-                            onTap: _openVideos,
-                          ),
-                        ],
+                      const SizedBox(width: 12),
+                      _buildStatCard(
+                        'Pending fees',
+                        pending.toString(),
+                        icon: Icons.receipt_long_rounded,
+                        color: StudentColors.orange,
                       ),
-                      const SizedBox(height: 22),
-                      _buildLiveClassSection(),
-                      const SizedBox(height: 22),
-                      const StudentSectionHeader(
-                        title: 'My learning',
-                        subtitle: 'Track modules for your enrolled courses.',
-                        icon: Icons.auto_graph_rounded,
-                      ),
-                      const SizedBox(height: 12),
-                      if (_enrollments.isEmpty)
-                        StudentEmptyState(
-                          icon: Icons.school_outlined,
-                          title: 'No enrollments yet',
-                          message: 'Browse courses and request admission to begin.',
-                          actionLabel: 'Open courses',
-                          onAction: widget.onOpenCourses,
-                        )
-                      else
-                        ..._enrollments.map(_buildEnrollmentProgressCard),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _buildStatCard(
+                        'Progress',
+                        '${(_averageProgress * 100).round()}%',
+                        icon: Icons.trending_up_rounded,
+                        color: StudentColors.blue,
+                      ),
+                      const SizedBox(width: 12),
+                      _buildStatCard(
+                        'Videos',
+                        'Learn',
+                        icon: Icons.ondemand_video_rounded,
+                        color: StudentColors.purple,
+                        onTap: _openVideos,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
+                  _buildLiveClassSection(),
+                  const SizedBox(height: 22),
+                  const StudentSectionHeader(
+                    title: 'My learning',
+                    subtitle: 'Track modules for your enrolled courses.',
+                    icon: Icons.auto_graph_rounded,
+                  ),
+                  const SizedBox(height: 12),
+                  if (_activeEnrollments.isEmpty)
+                    StudentEmptyState(
+                      icon: Icons.school_outlined,
+                      title: 'No enrollments yet',
+                      message: 'Browse courses and request admission to begin.',
+                      actionLabel: 'Open courses',
+                      onAction: widget.onOpenCourses,
+                    )
+                  else
+                    ..._activeEnrollments.map(_buildEnrollmentProgressCard),
+                ],
+              ),
+            ),
     );
   }
 
@@ -345,7 +349,10 @@ class _DashboardScreenState extends State<DashboardScreen>
             icon: Stack(
               clipBehavior: Clip.none,
               children: [
-                const Icon(Icons.notifications_none_rounded, color: Colors.white),
+                const Icon(
+                  Icons.notifications_none_rounded,
+                  color: Colors.white,
+                ),
                 if (_notificationCount > 0)
                   Positioned(
                     right: -1,
@@ -370,18 +377,25 @@ class _DashboardScreenState extends State<DashboardScreen>
   int get _notificationCount {
     var count = 0;
     if (_liveIsJoinable) count++;
-    count += _enrollments.where((item) => !item.isPaid).length;
+    count += _pendingEnrollments.length;
     count += _notifications.isNotEmpty ? 1 : 0;
     return count;
   }
 
   bool get _liveIsJoinable {
     return !_checkingLive &&
-        _hasLiveAccess &&
         _hasLive &&
+        _liveStatus == 'live' &&
+        (_liveCourseId == null || _liveCourseId!.isEmpty) &&
         _liveMode == 'internal' &&
         _internalLiveActive;
   }
+
+  List<Enrollment> get _activeEnrollments =>
+      _enrollments.where((item) => item.status == 'active').toList();
+
+  List<Enrollment> get _pendingEnrollments =>
+      _enrollments.where((item) => item.status == 'pending').toList();
 
   Widget _buildSkeleton() {
     return ListView(
@@ -467,7 +481,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         _AlertTile(
           icon: Icons.receipt_long_rounded,
           color: StudentColors.orange,
-          title: '$pending fee ${pending == 1 ? 'request' : 'requests'} pending',
+          title:
+              '$pending fee ${pending == 1 ? 'request' : 'requests'} pending',
           subtitle: 'Admin approval is needed before live class access opens.',
         ),
       );
@@ -532,32 +547,66 @@ class _DashboardScreenState extends State<DashboardScreen>
     if (!_liveIsJoinable) return const SizedBox.shrink();
 
     return Container(
+      padding: const EdgeInsets.all(14),
       decoration: studentCardDecoration(borderColor: StudentColors.red),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: StudentColors.red,
-          child: Icon(Icons.live_tv_rounded, color: Colors.white),
-        ),
-        title: Text(
-          _liveTitle ?? 'Live class',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const CircleAvatar(
+                backgroundColor: StudentColors.red,
+                child: Icon(Icons.live_tv_rounded, color: Colors.white),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Global Live Class',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (_liveTitle?.trim().isNotEmpty == true) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _liveTitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: StudentColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Text(
+                'LIVE NOW',
+                style: TextStyle(
+                  color: StudentColors.red,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
           ),
-        ),
-        subtitle: const Text(
-          'Live class available now',
-          style: TextStyle(color: StudentColors.muted, fontSize: 12),
-        ),
-        trailing: FilledButton.icon(
-          onPressed: _openLiveClass,
-          style: FilledButton.styleFrom(
-            backgroundColor: StudentColors.green,
-            foregroundColor: StudentColors.bg,
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _openLiveClass,
+            style: FilledButton.styleFrom(
+              backgroundColor: StudentColors.green,
+              foregroundColor: StudentColors.bg,
+            ),
+            icon: const Icon(Icons.play_arrow_rounded, size: 18),
+            label: const Text('Join Live Class'),
           ),
-          icon: const Icon(Icons.play_arrow_rounded, size: 18),
-          label: const Text('Join'),
-        ),
+        ],
       ),
     );
   }
@@ -565,7 +614,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildEnrollmentProgressCard(Enrollment enrollment) {
     final progress = _progressForEnrollment(enrollment);
     final completed = _completedCountFor(enrollment);
-    final total = defaultCourseLessons(enrollment).length;
+    final total = _progressByCourse[enrollment.courseId]?.totalCount ?? 0;
 
     return InkWell(
       borderRadius: BorderRadius.circular(18),
@@ -579,29 +628,21 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ),
         );
-        _loadDashboard();
+        _loadAll();
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
-        decoration: studentCardDecoration(
-          borderColor: enrollment.isPaid ? StudentColors.border : StudentColors.orange,
-        ),
+        decoration: studentCardDecoration(borderColor: StudentColors.border),
         child: Column(
           children: [
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: enrollment.isPaid
-                      ? const Color(0xFF022C22)
-                      : const Color(0xFF451A03),
+                  backgroundColor: const Color(0xFF022C22),
                   child: Icon(
-                    enrollment.isPaid
-                        ? Icons.verified_rounded
-                        : Icons.hourglass_bottom_rounded,
-                    color: enrollment.isPaid
-                        ? StudentColors.green
-                        : StudentColors.orange,
+                    Icons.verified_rounded,
+                    color: StudentColors.green,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -620,9 +661,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        enrollment.isPaid
-                            ? '$completed of $total modules completed'
-                            : 'Fee pending - Rs. ${enrollment.coursePrice}',
+                        '$completed of $total modules completed',
                         style: const TextStyle(
                           color: StudentColors.muted,
                           fontSize: 12,
@@ -635,10 +674,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               ],
             ),
             const SizedBox(height: 12),
-            StudentProgressBar(
-              value: progress,
-              color: enrollment.isPaid ? StudentColors.green : StudentColors.orange,
-            ),
+            StudentProgressBar(value: progress, color: StudentColors.green),
           ],
         ),
       ),
@@ -653,7 +689,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       builder: (context) {
-        final pending = _enrollments.where((item) => !item.isPaid).length;
+        final pending = _pendingEnrollments.length;
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -691,10 +727,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   Future<void> _openLiveClass() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => LiveClassScreen(
-          student: widget.student,
-          settings: widget.settings,
-        ),
+        builder: (_) =>
+            LiveClassScreen(student: widget.student, settings: widget.settings),
       ),
     );
     if (mounted) await _loadLiveClass();
@@ -703,10 +737,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   void _openVideos() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => VideosScreen(
-          settings: widget.settings,
-          student: widget.student,
-        ),
+        builder: (_) =>
+            VideosScreen(settings: widget.settings, student: widget.student),
       ),
     );
   }
@@ -773,6 +805,18 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 }
 
+class _CourseProgressSummary {
+  final int completedCount;
+  final int totalCount;
+
+  const _CourseProgressSummary({
+    required this.completedCount,
+    required this.totalCount,
+  });
+
+  double get percentage => totalCount == 0 ? 0 : completedCount / totalCount;
+}
+
 class _AlertTile extends StatelessWidget {
   final IconData icon;
   final Color color;
@@ -830,10 +874,7 @@ class _AlertTile extends StatelessWidget {
             ),
           ),
           if (actionLabel != null && onTap != null)
-            TextButton(
-              onPressed: onTap,
-              child: Text(actionLabel!),
-            ),
+            TextButton(onPressed: onTap, child: Text(actionLabel!)),
         ],
       ),
     );

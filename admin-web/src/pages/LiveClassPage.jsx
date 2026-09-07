@@ -305,6 +305,8 @@ export default function LiveClassPage() {
   async function startLive() {
     setStarting(true);
     setMessage("");
+    let liveStarted = false;
+    let broadcasterReady = false;
 
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -315,6 +317,7 @@ export default function LiveClassPage() {
         title: title || "Live class",
         courseId: courseId || null,
       });
+      liveStarted = true;
       const roomCode = res.data.liveClass.internalRoomCode;
       iceServersRef.current = Array.isArray(res.data.iceServers)
         ? res.data.iceServers
@@ -344,6 +347,7 @@ export default function LiveClassPage() {
       });
 
       socket.on("internal-live:broadcaster-ready", () => {
+        broadcasterReady = true;
         setLive(true);
         setConnectionStatus("Broadcasting to students");
         showMessage("info", "Live class started.");
@@ -476,11 +480,17 @@ export default function LiveClassPage() {
       socket.on("internal-live:error", ({ message: socketMessage }) => {
         setConnectionStatus("Live connection needs attention");
         showMessage("error", socketMessage || "Live connection failed.");
+        if (liveStarted && !broadcasterReady) {
+          stopLive({ callApi: true });
+        }
       });
     } catch (err) {
       console.error(err);
-      showMessage("error", err.message || "Failed to start live class.");
-      await stopLive({ callApi: true });
+      showMessage(
+        "error",
+        err.response?.data?.error || err.message || "Failed to start live class."
+      );
+      await stopLive({ callApi: liveStarted });
     } finally {
       setStarting(false);
     }
@@ -789,20 +799,25 @@ export default function LiveClassPage() {
                 />
               </div>
               <div>
-                <label style={labelStyle}>Who can join?</label>
+                <label style={labelStyle}>Class target</label>
                 <select
                   style={inputStyle}
                   value={courseId}
                   disabled={live}
                   onChange={(e) => setCourseId(e.target.value)}
                 >
-                  <option value="">All enrolled students</option>
+                  <option value="">Global — any authenticated student</option>
                   {courses.map((course) => (
                     <option key={course._id || course.id} value={course._id || course.id}>
                       {course.title}
                     </option>
                   ))}
                 </select>
+                <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 7 }}>
+                  {courseId
+                    ? `Course live class: ${courses.find((course) => String(course._id || course.id) === String(courseId))?.title || "Selected course"}`
+                    : "Global live class: visible separately on the student dashboard."}
+                </div>
               </div>
               <div>
                 <label style={labelStyle}>Scheduled time</label>

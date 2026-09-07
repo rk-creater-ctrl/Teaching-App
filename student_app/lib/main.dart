@@ -35,51 +35,31 @@ class _SREduNovaStudentAppState extends State<SREduNovaStudentApp> {
     } catch (_) {}
   }
 
-  Future<void> _restoreSession() async {
-    try {
-      final token = await SessionStore.getToken();
-      if (token == null || token.trim().isEmpty) {
-        if (!mounted) return;
-        setState(() => _checkingSession = false);
-        return;
-      }
+  Future<void> _startUnauthenticated() async {
+    ApiClient().setToken(null);
+    await SessionStore.clearStoredAuthentication();
+    if (!mounted) return;
+    setState(() => _checkingSession = false);
+  }
 
-      final api = ApiClient();
-      api.setToken(token);
+  Future<void> _onAuthenticated(String token, Student student) async {
+    ApiClient().setToken(token);
+    if (!mounted) return;
+    setState(() => _student = student);
+  }
 
-      Student? student = await SessionStore.getStudent();
-
-      try {
-        final res = await api.getMe();
-        final data = Map<String, dynamic>.from(res.data as Map);
-        final userJson = data['user'] as Map?;
-        if (userJson == null) throw Exception('Invalid saved session');
-        student = Student.fromJson(Map<String, dynamic>.from(userJson));
-        await SessionStore.updateStudent(student);
-      } catch (_) {
-        await SessionStore.clear();
-        api.setToken(null);
-        student = null;
-      }
-
-      if (!mounted) return;
-      setState(() {
-        _student = student;
-        _checkingSession = false;
-      });
-    } catch (_) {
-      await SessionStore.clear();
-      ApiClient().setToken(null);
-      if (!mounted) return;
-      setState(() => _checkingSession = false);
-    }
+  Future<void> _logout() async {
+    await SessionStore.clear(studentId: _student?.id);
+    ApiClient().setToken(null);
+    if (!mounted) return;
+    setState(() => _student = null);
   }
 
   @override
   void initState() {
     super.initState();
     _loadSettings();
-    _restoreSession();
+    _startUnauthenticated();
   }
 
   @override
@@ -100,8 +80,16 @@ class _SREduNovaStudentAppState extends State<SREduNovaStudentApp> {
       home: _checkingSession
           ? const _SessionSplashScreen()
           : _student != null
-              ? MainShell(student: _student!, settings: _settings)
-              : LoginScreen(initialSettings: _settings),
+          ? MainShell(
+              key: ValueKey(_student!.id),
+              student: _student!,
+              settings: _settings,
+              onLogout: _logout,
+            )
+          : LoginScreen(
+              initialSettings: _settings,
+              onAuthenticated: _onAuthenticated,
+            ),
     );
   }
 }
